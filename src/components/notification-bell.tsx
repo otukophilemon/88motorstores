@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, MessageSquare } from "lucide-react";
+import { Bell, MessageSquare, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,13 +11,54 @@ import {
 
 const POLL_MS = 15000;
 
+function iconFor(kind: string) {
+  if (kind === "reply") return MessageSquare;
+  if (kind === "listing_new") return Store;
+  if (kind === "enquiry_new") return MessageSquare;
+  if (kind === "upgrade_new") return Store;
+  return Bell;
+}
+
+function titleFor(n: Notification): string {
+  if (n.kind === "reply") {
+    return `${n.actorName} replied`;
+  }
+  if (n.kind === "listing_new") {
+    return n.message ?? "New listing awaiting review";
+  }
+  if (n.kind === "enquiry_new") {
+    return n.message ?? "New buyer enquiry";
+  }
+  if (n.kind === "upgrade_new") {
+    return n.message ?? "New upgrade request";
+  }
+  if (n.kind === "contact_new") {
+    return n.message ?? "New contact message";
+  }
+  return n.message ?? "Notification";
+}
+
+function sublineFor(n: Notification): string | null {
+  if (n.kind === "reply") return n.threadTitle || null;
+  return null;
+}
+
+function urlFor(n: Notification): { to: string; params?: Record<string, string> } {
+  if (n.kind === "reply" && n.postId && n.clubSlug) {
+    return {
+      to: "/nations/$slug/$threadId",
+      params: { slug: n.clubSlug, threadId: n.postId },
+    };
+  }
+  return { to: n.link ?? "/desk" };
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Notification[] | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Poll the unread count.
   useEffect(() => {
     let alive = true;
     async function tick() {
@@ -36,7 +77,6 @@ export function NotificationBell() {
     };
   }, []);
 
-  // Load the recent list when the dropdown opens.
   useEffect(() => {
     if (!open) return;
     setLoading(true);
@@ -47,18 +87,18 @@ export function NotificationBell() {
   }, [open]);
 
   async function openNotification(n: Notification) {
-    // Optimistically mark read locally.
     if (!n.readAt) {
       setUnread((u) => Math.max(0, u - 1));
-      setItems((prev) =>
-        prev?.map((x) =>
-          x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x,
-        ) ?? null,
+      setItems(
+        (prev) =>
+          prev?.map((x) =>
+            x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x,
+          ) ?? null,
       );
       try {
         await markNotificationRead({ data: { id: n.id } });
       } catch {
-        // ignore — server will catch up
+        // ignore
       }
     }
     setOpen(false);
@@ -84,7 +124,6 @@ export function NotificationBell() {
 
       {open ? (
         <>
-          {/* Click-outside shield */}
           <div
             className="fixed inset-0 z-40"
             onClick={() => setOpen(false)}
@@ -112,36 +151,48 @@ export function NotificationBell() {
               </p>
             ) : (
               <ul className="max-h-96 overflow-y-auto">
-                {items.slice(0, 8).map((n) => (
-                  <li key={n.id}>
-                    <Link
-                      to="/nations/$slug/$threadId"
-                      params={{
-                        slug: n.clubSlug ?? "",
-                        threadId: n.postId,
-                      }}
-                      onClick={() => void openNotification(n)}
-                      className={
-                        n.readAt
-                          ? "flex gap-3 px-4 py-3 text-sm hover:bg-secondary"
-                          : "flex gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm hover:bg-secondary"
-                      }
-                    >
-                      <MessageSquare className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">
-                          {n.actorName} replied
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {n.threadTitle}
-                        </p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {relativeTime(n.createdAt)}
-                        </p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
+                {items.slice(0, 8).map((n) => {
+                  const target = urlFor(n);
+                  const Icon = iconFor(n.kind);
+                  const isAdmin =
+                    n.kind === "listing_new" ||
+                    n.kind === "enquiry_new" ||
+                    n.kind === "upgrade_new" ||
+                    n.kind === "contact_new";
+                  return (
+                    <li key={n.id}>
+                      <Link
+                        to={target.to}
+                        params={target.params as never}
+                        onClick={() => void openNotification(n)}
+                        className={
+                          n.readAt
+                            ? "flex gap-3 px-4 py-3 text-sm hover:bg-secondary"
+                            : "flex gap-3 border-l-2 border-primary bg-primary/5 px-4 py-3 text-sm hover:bg-secondary"
+                        }
+                      >
+                        <Icon
+                          className={
+                            isAdmin
+                              ? "mt-0.5 size-4 shrink-0 text-primary"
+                              : "mt-0.5 size-4 shrink-0 text-muted-foreground"
+                          }
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{titleFor(n)}</p>
+                          {sublineFor(n) ? (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {sublineFor(n)}
+                            </p>
+                          ) : null}
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {relativeTime(n.createdAt)}
+                          </p>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -167,7 +218,6 @@ function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
   const diffSec = Math.floor((now - then) / 1000);
-
   if (diffSec < 60) return "just now";
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;

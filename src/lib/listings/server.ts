@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { notifyAdmins } from "@/lib/notifications/server";
 
 /**
  * Seller listing submission (server-only).
@@ -23,23 +24,19 @@ export type CreateListingInput = {
   location: string;
   status: "Available" | "Reserved" | "Sold";
   description: string;
-  // Car-specific
   fuel?: "Petrol" | "Diesel" | "Hybrid";
   transmission?: "Automatic" | "Manual";
   body?: string;
   mileage?: number;
-  // Part-specific
   category?: string;
   condition?: string;
   fitment?: string;
   brand?: string;
   oem?: string;
   stock?: number;
-  // Seller contact (kept private — only visible at /desk)
   sellerName: string;
   sellerPhone: string;
   sellerEmail?: string;
-  // Photo URLs from Vercel Blob
   images: string[];
 };
 
@@ -69,7 +66,6 @@ export const createListing = createServerFn({ method: "POST" })
     if (!sellerPhone) throw new Error("Seller WhatsApp is required.");
     if (!Number.isFinite(price) || price <= 0) throw new Error("A valid price is required.");
 
-    // Validate images
     const images = Array.isArray(data.images)
       ? data.images.map((u) => String(u).trim()).filter(Boolean)
       : [];
@@ -128,6 +124,18 @@ export const createListing = createServerFn({ method: "POST" })
           ${context.userId}, false, ${JSON.stringify(data.images)}::jsonb
         )
       `;
+
+      // Notify admins of the new submission.
+      try {
+        await notifyAdmins({
+          kind: "listing_new",
+          message: `New listing: ${data.title}`,
+          link: "/desk",
+        });
+      } catch (notifyErr) {
+        console.error("[createListing] notification failed:", notifyErr);
+      }
+
       return { ok: true, id };
     } catch (err) {
       console.error("[createListing] failed:", err);

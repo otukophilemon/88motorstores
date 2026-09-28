@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { notifyAdmins } from "@/lib/notifications/server";
 
 /**
  * Account server functions — seller profile, upgrade request.
@@ -26,8 +27,6 @@ export type MyAccount = {
   memberSince: string;
   completedDeals: number;
 };
-
-// ─── Helpers ─────────────────────────────────────────────────────────────
 
 function iso(v: string | Date): string {
   return typeof v === "string" ? v : v.toISOString();
@@ -62,7 +61,7 @@ type AccountRow = {
   seller_verified: boolean;
   seller_verified_at: string | Date | null;
   seller_upgrade_status: string | null;
-  createdAt: string | Date;      // ← changed
+  createdAt: string | Date;
   completed_deals: number;
 };
 
@@ -70,7 +69,7 @@ export const getMyAccount = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<MyAccount | null> => {
     const sql = await getSql();
-        const rows = await sql<AccountRow>`
+    const rows = await sql<AccountRow>`
       select
         id, name, email, seller_type, seller_slug, seller_business_name,
         seller_bio, seller_city, seller_verified, seller_verified_at,
@@ -148,7 +147,6 @@ export const submitUpgradeRequest = createServerFn({ method: "POST" })
     try {
       const sql = await getSql();
 
-      // Check the user's current state.
       const currentRows = await sql<{
         seller_type: string;
         seller_upgrade_status: string | null;
@@ -167,7 +165,6 @@ export const submitUpgradeRequest = createServerFn({ method: "POST" })
         return { ok: false, error: "You already have a pending request." };
       }
 
-      // Check slug availability.
       const slugTaken = await sql<{ id: string }>`
         select id from "user"
         where seller_slug = ${data.desiredSlug}
@@ -180,8 +177,6 @@ export const submitUpgradeRequest = createServerFn({ method: "POST" })
         };
       }
 
-      // Save the request. We store proposed values on the user row but DON'T
-      // flip seller_type yet — that happens on admin approval at /desk.
       await sql`
         update "user" set
           seller_business_name = ${data.businessName},
@@ -191,6 +186,16 @@ export const submitUpgradeRequest = createServerFn({ method: "POST" })
           seller_upgrade_status = 'pending'
         where id = ${context.userId}
       `;
+
+      try {
+        await notifyAdmins({
+          kind: "upgrade_new",
+          message: `Upgrade request: ${data.businessName}`,
+          link: "/desk",
+        });
+      } catch (notifyErr) {
+        console.error("[submitUpgradeRequest] notification failed:", notifyErr);
+      }
 
       return { ok: true };
     } catch (err) {

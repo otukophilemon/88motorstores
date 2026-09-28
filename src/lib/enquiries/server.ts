@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getSql } from "@/lib/db";
+import { notifyAdmins } from "@/lib/notifications/server";
 
 /**
  * Public enquiry submission (server-only).
@@ -8,13 +9,13 @@ import { getSql } from "@/lib/db";
  * The enquiry lands on the desk with status='new'. Admin (desk) reads these
  * via src/lib/listings/admin-server.ts (getEnquiries, markEnquiryIntroduced).
  *
- * Privacy note: buyer contact info (name, phone, city) is stored in the DB but
- * is only readable via admin-only server functions. Public pages never return it.
+ * Privacy note: buyer contact info (name, phone, city) is stored in the DB
+ * but is only readable via admin-only server functions.
  */
 
 export type CreateEnquiryInput = {
-  listingId?: string;      // optional — some enquiries may be "general"
-  listingTitle: string;    // snapshot of the listing title at submit time
+  listingId?: string;
+  listingTitle: string;
   buyerName: string;
   buyerPhone: string;
   buyerCity?: string;
@@ -63,6 +64,17 @@ export const createEnquiry = createServerFn({ method: "POST" })
           ${data.message ?? null}, 'new'
         )
       `;
+
+      try {
+        await notifyAdmins({
+          kind: "enquiry_new",
+          message: `New enquiry from ${data.buyerName}: ${data.listingTitle}`,
+          link: "/desk",
+        });
+      } catch (notifyErr) {
+        console.error("[createEnquiry] notification failed:", notifyErr);
+      }
+
       return { ok: true, id };
     } catch (err) {
       console.error("[createEnquiry] failed:", err);

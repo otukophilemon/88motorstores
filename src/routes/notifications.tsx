@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, CheckCheck, MessageSquare } from "lucide-react";
+import { Bell, CheckCheck, MessageSquare, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { SignedOut, RedirectToSignIn } from "@/lib/auth/gates";
+import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   getMyNotifications,
@@ -16,20 +16,52 @@ export const Route = createFileRoute("/notifications")({
   component: NotificationsPage,
 });
 
+function iconFor(kind: string) {
+  if (kind === "reply") return MessageSquare;
+  if (kind === "listing_new") return Store;
+  if (kind === "enquiry_new") return MessageSquare;
+  if (kind === "upgrade_new") return Store;
+  return Bell;
+}
+
+function titleFor(n: Notification): string {
+  if (n.kind === "reply") return `${n.actorName} replied`;
+  return n.message ?? "Notification";
+}
+
+function sublineFor(n: Notification): string | null {
+  if (n.kind === "reply") return n.threadTitle || null;
+  return null;
+}
+
+function urlFor(n: Notification): { to: string; params?: Record<string, string> } {
+  if (n.kind === "reply" && n.postId && n.clubSlug) {
+    return {
+      to: "/nations/$slug/$threadId",
+      params: { slug: n.clubSlug, threadId: n.postId },
+    };
+  }
+  return { to: n.link ?? "/desk" };
+}
+
 function NotificationsPage() {
   const { user, isPending } = useCurrentUserState();
   const [items, setItems] = useState<Notification[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (isPending || !user) return;
+    if (isPending) return;
+    if (loaded) return;
+    setLoaded(true);
+    if (!user) return;
     setLoading(true);
     void getMyNotifications()
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [isPending, user]);
+  }, [isPending, user, loaded]);
 
   if (isPending) {
     return (
@@ -39,21 +71,20 @@ function NotificationsPage() {
     );
   }
 
-  if (!user) {
-    return <RedirectToSignIn />;
-  }
+  if (!user) return <RedirectToSignIn />;
 
   async function openOne(n: Notification) {
     if (n.readAt) return;
-    setItems((prev) =>
-      prev?.map((x) =>
-        x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x,
-      ) ?? null,
+    setItems(
+      (prev) =>
+        prev?.map((x) =>
+          x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x,
+        ) ?? null,
     );
     try {
       await markNotificationRead({ data: { id: n.id } });
     } catch {
-      // ignore — server catches up
+      // ignore
     }
   }
 
@@ -87,9 +118,7 @@ function NotificationsPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl font-semibold">Notifications</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {unreadCount > 0
-              ? `${unreadCount} unread`
-              : "You’re all caught up."}
+            {unreadCount > 0 ? `${unreadCount} unread` : "You’re all caught up."}
           </p>
         </div>
         {items && items.length > 0 ? (
@@ -112,8 +141,8 @@ function NotificationsPage() {
             <Bell className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-4 font-display text-xl">No notifications yet.</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              When someone replies to a thread you’re part of, you’ll see it
-              here.
+              When someone replies to a thread you’re part of, or a seller submits
+              a new listing, you’ll see it here.
             </p>
             <Button asChild className="mt-6">
               <Link to="/nations">Browse clubs</Link>
@@ -121,49 +150,58 @@ function NotificationsPage() {
           </div>
         ) : (
           <ul className="grid gap-3">
-            {items.map((n) => (
-              <li key={n.id}>
-                <Link
-                  to="/nations/$slug/$threadId"
-                  params={{
-                    slug: n.clubSlug ?? "",
-                    threadId: n.postId,
-                  }}
-                  onClick={() => void openOne(n)}
-                  className={
-                    n.readAt
-                      ? "flex gap-3 rounded-xl bg-card p-4 shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]"
-                      : "flex gap-3 rounded-xl border border-primary/40 bg-card p-4 shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]"
-                  }
-                >
-                  <span
+            {items.map((n) => {
+              const target = urlFor(n);
+              const Icon = iconFor(n.kind);
+              const isAdmin =
+                n.kind === "listing_new" ||
+                n.kind === "enquiry_new" ||
+                n.kind === "upgrade_new" ||
+                n.kind === "contact_new";
+              return (
+                <li key={n.id}>
+                  <Link
+                    to={target.to}
+                    params={target.params as never}
+                    onClick={() => void openOne(n)}
                     className={
                       n.readAt
-                        ? "mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground"
-                        : "mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                        ? "flex gap-3 rounded-xl bg-card p-4 shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]"
+                        : "flex gap-3 rounded-xl border border-primary/40 bg-card p-4 shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]"
                     }
                   >
-                    <MessageSquare className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {n.actorName} replied to <span className="text-foreground/80">{n.threadTitle}</span>
-                    </p>
-                    {n.clubSlug ? (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        in {n.clubSlug.replace(/-/g, " ")}
+                    <span
+                      className={
+                        isAdmin
+                          ? "mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                          : n.readAt
+                            ? "mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-muted-foreground"
+                            : "mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                      }
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{titleFor(n)}</p>
+                      {sublineFor(n) ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {sublineFor(n)}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {new Date(n.createdAt).toLocaleString("en-KE")}
                       </p>
+                    </div>
+                    {!n.readAt ? (
+                      <span
+                        className="mt-2 size-2 shrink-0 rounded-full bg-primary"
+                        aria-label="Unread"
+                      />
                     ) : null}
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {new Date(n.createdAt).toLocaleString("en-KE")}
-                    </p>
-                  </div>
-                  {!n.readAt ? (
-                    <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />
-                  ) : null}
-                </Link>
-              </li>
-            ))}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

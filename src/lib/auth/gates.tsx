@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { Navigate } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
@@ -81,11 +81,11 @@ export function SignInButtons() {
 }
 
 /**
- * Minimal signed-in identity chip + sign-out. Restyle freely (see the
- * `design-ui` skill). Sign-out is only shown when auth is enabled (the
- * disabled-auth dev user has nothing to sign out of) and the session is not
- * gate-materialized — behind the gate the next request signs the viewer
- * straight back in, so a sign-out control there is a broken loop.
+ * Minimal signed-in identity chip + sign-out. The name links to /account.
+ * Sign-out is only shown when auth is enabled (the disabled-auth dev user has
+ * nothing to sign out of) and the session is not gate-materialized — behind the
+ * gate the next request signs the viewer straight back in, so a sign-out control
+ * there is a broken loop.
  */
 export function UserButton() {
   const user = useCurrentUser();
@@ -112,7 +112,9 @@ export function UserButton() {
           {label.charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="text-sm font-medium">{label}</span>
+      <Link to="/account" className="text-sm font-medium hover:underline">
+        {label}
+      </Link>
       {authEnabled && !gateSession && (
         <button
           type="button"

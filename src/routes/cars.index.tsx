@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CarCard } from "@/components/car-card";
-import { UserListingGrid } from "@/components/user-listing-card";
+import { UserListingCard } from "@/components/user-listing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,8 +21,11 @@ import {
   cars,
   type Body,
 } from "@/lib/catalog";
-import { getPublishedCars } from "@/lib/listings/public-server";
-import type { PublicListing } from "@/lib/listings/public-server";
+import {
+  getPrivateCars,
+  getYardCars,
+  type PublicListing,
+} from "@/lib/listings/public-server";
 
 export type CarsSearch = {
   q?: string;
@@ -49,36 +52,49 @@ function CarsPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const [open, setOpen] = useState(false);
-  const [userCars, setUserCars] = useState<PublicListing[]>([]);
+  const [privateCars, setPrivateCars] = useState<PublicListing[]>([]);
+  const [yardCars, setYardCars] = useState<PublicListing[]>([]);
 
   useEffect(() => {
-    void getPublishedCars()
-      .then(setUserCars)
-      .catch(() => setUserCars([]));
+    void Promise.all([
+      getPrivateCars({ data: { limit: 12 } }).catch(() => []),
+      getYardCars({ data: { limit: 12 } }).catch(() => []),
+    ]).then(([pc, yc]) => {
+      setPrivateCars(pc);
+      setYardCars(yc);
+    });
   }, []);
 
-  // Apply the same search filters to user listings (title, make, model, location)
-  const filteredUserCars = useMemo(() => {
-    let list = [...userCars];
+  // Apply the same filters to user listings
+  function applyFilters(list: PublicListing[]): PublicListing[] {
+    let out = [...list];
     const q = search.q?.toLowerCase().trim();
     if (q) {
-      list = list.filter((c) =>
+      out = out.filter((c) =>
         `${c.title} ${c.make ?? ""} ${c.model ?? ""} ${c.location}`
           .toLowerCase()
           .includes(q),
       );
     }
-    if (search.make) list = list.filter((c) => c.make === search.make);
-    if (search.body) list = list.filter((c) => c.body === search.body);
+    if (search.make) out = out.filter((c) => c.make === search.make);
+    if (search.body) out = out.filter((c) => c.body === search.body);
     if (search.city) {
-      list = list.filter((c) =>
+      out = out.filter((c) =>
         c.location.toLowerCase().includes((search.city ?? "").toLowerCase()),
       );
     }
-    if (search.fuel) list = list.filter((c) => c.fuel === search.fuel);
-    // Note: no sorting applied — user listings always appear newest-first by default.
-    return list;
-  }, [userCars, search]);
+    if (search.fuel) out = out.filter((c) => c.fuel === search.fuel);
+    return out;
+  }
+
+  const filteredPrivateCars = useMemo(
+    () => applyFilters(privateCars),
+    [privateCars, search],
+  );
+  const filteredYardCars = useMemo(
+    () => applyFilters(yardCars),
+    [yardCars, search],
+  );
 
   const filteredDemo = useMemo(() => {
     let list = [...cars];
@@ -105,7 +121,8 @@ function CarsPage() {
     return list;
   }, [search]);
 
-  const totalCount = filteredUserCars.length + filteredDemo.length;
+  const totalCount =
+    filteredPrivateCars.length + filteredYardCars.length + filteredDemo.length;
 
   function patch(next: Partial<CarsSearch>) {
     void navigate({
@@ -120,6 +137,10 @@ function CarsPage() {
   }
 
   const filters = <Filters search={search} onPatch={patch} />;
+  const noResults =
+    filteredPrivateCars.length === 0 &&
+    filteredYardCars.length === 0 &&
+    filteredDemo.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -163,44 +184,48 @@ function CarsPage() {
       <div className="mt-8 flex gap-8">
         <aside className="hidden w-64 shrink-0 lg:block">{filters}</aside>
         <div className="min-w-0 flex-1">
-          {filteredUserCars.length ? (
+          {/* Individual sellers */}
+          {filteredPrivateCars.length ? (
             <section className="mb-12">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-primary">
-                    From our sellers
-                  </p>
-                  <h2 className="mt-1 font-display text-2xl font-semibold">
-                    Listed by the community
-                  </h2>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {filteredUserCars.length}{" "}
-                  {filteredUserCars.length === 1 ? "listing" : "listings"}
-                </p>
-              </div>
-              <div className="mt-6">
-                <UserListingGrid listings={filteredUserCars} />
+              <SectionHeader
+                kicker="From our sellers"
+                title="From individual sellers"
+                count={filteredPrivateCars.length}
+                unit="listing"
+              />
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredPrivateCars.map((l) => (
+                  <UserListingCard key={l.id} listing={l} />
+                ))}
               </div>
             </section>
           ) : null}
 
-          <section>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Yards &amp; dealers
-                </p>
-                <h2 className="mt-1 font-display text-2xl font-semibold">
-                  From established sellers
-                </h2>
+          {/* Yards & dealers */}
+          {filteredYardCars.length ? (
+            <section className="mb-12">
+              <SectionHeader
+                kicker="Yards & dealers"
+                title="From established sellers"
+                count={filteredYardCars.length}
+                unit="listing"
+              />
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredYardCars.map((l) => (
+                  <UserListingCard key={l.id} listing={l} />
+                ))}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {filteredDemo.length}{" "}
-                {filteredDemo.length === 1 ? "car" : "cars"}
-              </p>
-            </div>
+            </section>
+          ) : null}
 
+          {/* Demo cars (featured) */}
+          <section>
+            <SectionHeader
+              kicker="Featured"
+              title="Starter inventory"
+              count={filteredDemo.length}
+              unit="car"
+            />
             <div className="mt-6">
               {filteredDemo.length === 0 ? (
                 <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
@@ -223,8 +248,8 @@ function CarsPage() {
             </div>
           </section>
 
-          {filteredUserCars.length === 0 && filteredDemo.length === 0 ? (
-            <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
+          {noResults ? (
+            <div className="mt-8 rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
               <p className="font-display text-2xl">Nothing in that lane.</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Loosen the filters or{" "}
@@ -244,6 +269,32 @@ function CarsPage() {
         </SheetContent>
       </Sheet>
     </main>
+  );
+}
+
+function SectionHeader({
+  kicker,
+  title,
+  count,
+  unit,
+}: {
+  kicker: string;
+  title: string;
+  count: number;
+  unit: string;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-4">
+      <div>
+        <p className="text-xs uppercase tracking-[0.18em] text-primary">
+          {kicker}
+        </p>
+        <h2 className="mt-1 font-display text-2xl font-semibold">{title}</h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {count} {count === 1 ? unit : `${unit}s`}
+      </p>
+    </div>
   );
 }
 

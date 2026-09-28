@@ -12,7 +12,7 @@ import { EnquireDialog } from "@/components/enquire-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { analyseCar } from "@/lib/analyse";
-import { carById, cars, yardById } from "@/lib/catalog";
+import { carById, cars } from "@/lib/catalog";
 import { kes, km } from "@/lib/format";
 import { useGarii } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,6 @@ function CarDetail() {
   const { id } = Route.useParams();
   const car = carById(id);
   if (!car) throw notFound();
-  const yard = yardById(car.sellerId);
   const analysis = analyseCar(car);
   const saved = useGarii((s) => s.savedCars.includes(car.id));
   const compared = useGarii((s) => s.compareIds.includes(car.id));
@@ -96,7 +95,6 @@ function CarDetail() {
             <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="size-4" />
               {car.location}, {car.city}
-              {yard ? ` · ${yard.name}` : null}
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
               <Spec k="Kilometres" v={km(car.mileage)} />
@@ -185,19 +183,6 @@ function CarDetail() {
               <CarCard key={c.id} car={c} />
             ))}
           </div>
-        </section>
-      ) : null}
-
-      {yard ? (
-        <section className="mt-14 rounded-xl bg-card p-6 shadow-[var(--shadow-border)]">
-          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Yard</p>
-          <h2 className="font-display text-2xl font-semibold">{yard.name}</h2>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{yard.bio}</p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link to="/yards/$id" params={{ id: yard.id }}>
-              View yard
-            </Link>
-          </Button>
         </section>
       ) : null}
 

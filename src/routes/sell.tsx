@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
+import { ImageUploader } from "@/components/image-uploader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +40,7 @@ function SellPage() {
   const [sellerName, setSellerName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
@@ -47,6 +49,10 @@ function SellPage() {
     const n = Number(price.replace(/[^\d]/g, ""));
     if (!title.trim() || !n || !location.trim() || !sellerName.trim() || !phone.trim()) {
       toast.error("Title, price, location, your name and WhatsApp are required.");
+      return;
+    }
+    if (images.length === 0) {
+      toast.error("At least one photo is required.");
       return;
     }
     setSubmitting(true);
@@ -69,6 +75,7 @@ function SellPage() {
           sellerName: sellerName.trim(),
           sellerPhone: phone.trim(),
           sellerEmail: email.trim() || undefined,
+          images,
         },
       });
 
@@ -110,6 +117,7 @@ function SellPage() {
               setPrice("");
               setDescription("");
               setLocation("");
+              setImages([]);
             }}
           >
             List another
@@ -130,7 +138,7 @@ function SellPage() {
           off your phone.
         </p>
         <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
-          <li>Photos can wait — the desk will schedule a shoot if the unit is in Nakuru or nearby.</li>
+          <li>Add up to 10 photos — the more angles, the better.</li>
           <li>Price in Kenyan shillings. Be honest on kilometres and status.</li>
           <li>Private sellers and yards use the same form.</li>
         </ul>
@@ -217,6 +225,22 @@ function SellPage() {
                 Part
               </Button>
             </div>
+
+            {/* Photos — first, prominent */}
+            <div className="grid gap-2">
+              <Label>
+                Photos <span className="text-destructive">*</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Up to 10. First photo becomes the cover. JPEG, PNG, WebP or GIF, max 8 MB each.
+              </p>
+              <ImageUploader
+                value={images}
+                onChange={setImages}
+                disabled={submitting}
+              />
+            </div>
+
             <Field label="Title" htmlFor="title">
               <Input
                 id="title"

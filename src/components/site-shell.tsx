@@ -1,16 +1,18 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { GitCompareArrows, Mail, MapPin, Menu, MessageCircle, Phone, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { UserButton, SignedIn, SignedOut } from "@/lib/auth/gates";
+import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { amIAdmin } from "@/lib/auth/am-i-admin";
 import { useGarii } from "@/lib/store";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+const NAV_BASE = [
   { to: "/" as const, label: "Home" },
   { to: "/cars" as const, label: "Cars" },
   { to: "/parts" as const, label: "Parts" },
@@ -19,14 +21,47 @@ const NAV = [
   { to: "/how-it-works" as const, label: "Concierge" },
 ];
 
+function useIsAdmin() {
+  const hydrated = useHydrated();
+  const { user, isPending } = useCurrentUserState();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (isPending) return;
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    let alive = true;
+    void amIAdmin()
+      .then((r) => {
+        if (alive) setIsAdmin(r.isAdmin);
+      })
+      .catch(() => {
+        if (alive) setIsAdmin(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [hydrated, isPending, user?.id]);
+
+  return isAdmin;
+}
+
 export function SiteHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const hydrated = useHydrated();
+  const isAdmin = useIsAdmin();
   const garageCount = useGarii((s) => s.savedCars.length + s.savedParts.length);
   const compareCount = useGarii((s) => s.compareIds.length);
   const garageShown = hydrated ? garageCount : 0;
   const compareShown = hydrated ? compareCount : 0;
+
+  const nav = isAdmin
+    ? [...NAV_BASE, { to: "/desk" as const, label: "Desk" }]
+    : NAV_BASE;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
@@ -35,7 +70,7 @@ export function SiteHeader() {
           <Logo />
         </Link>
         <nav className="hidden flex-1 items-center gap-1 lg:flex">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -66,6 +101,10 @@ export function SiteHeader() {
                 <span className="tabular-nums text-muted-foreground">{compareShown}</span>
               ) : null}
             </Link>
+          </Button>
+
+          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+            <Link to="/contact">Contact desk</Link>
           </Button>
 
           <SignedIn>
@@ -104,7 +143,7 @@ export function SiteHeader() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="p-6 pt-14">
           <nav className="flex flex-col gap-1">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -120,8 +159,8 @@ export function SiteHeader() {
             <Link to="/compare" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
               Compare
             </Link>
-            <Link to="/desk" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
-              Desk
+            <Link to="/contact" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
+              Contact desk
             </Link>
             <div className="mt-4 border-t border-border pt-4">
               <SignedIn>
@@ -199,7 +238,7 @@ export function SiteFooter() {
               <Link to="/sell">List a vehicle</Link>
             </li>
             <li>
-              <Link to="/desk">Owner desk</Link>
+              <Link to="/contact">Contact the desk</Link>
             </li>
             <li>
               <Link to="/garage">Your garage</Link>

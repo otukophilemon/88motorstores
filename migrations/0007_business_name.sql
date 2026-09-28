@@ -1,0 +1,1 @@
+alter table "user" add column if not exists seller_business_name text;

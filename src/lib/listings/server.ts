@@ -8,6 +8,9 @@ import { getSql } from "@/lib/db";
  * Called from the Sell page. Requires a signed-in seller (authMiddleware).
  * Inserts the listing with published=false — nothing appears on the public
  * Cars/Parts pages until the operator publishes it from /desk.
+ *
+ * Images: an array of public URLs (uploaded to Vercel Blob by the client).
+ * At least one is required; up to 10 per listing.
  */
 
 export type CreateListingInput = {
@@ -36,6 +39,8 @@ export type CreateListingInput = {
   sellerName: string;
   sellerPhone: string;
   sellerEmail?: string;
+  // Photo URLs from Vercel Blob
+  images: string[];
 };
 
 export type CreateListingResult =
@@ -64,6 +69,17 @@ export const createListing = createServerFn({ method: "POST" })
     if (!sellerPhone) throw new Error("Seller WhatsApp is required.");
     if (!Number.isFinite(price) || price <= 0) throw new Error("A valid price is required.");
 
+    // Validate images
+    const images = Array.isArray(data.images)
+      ? data.images.map((u) => String(u).trim()).filter(Boolean)
+      : [];
+    if (images.length === 0) {
+      throw new Error("At least one photo is required.");
+    }
+    if (images.length > 10) {
+      throw new Error("Up to 10 photos per listing.");
+    }
+
     return {
       kind: data.kind === "part" ? "part" : "car",
       title,
@@ -88,6 +104,7 @@ export const createListing = createServerFn({ method: "POST" })
       sellerName,
       sellerPhone,
       sellerEmail: data.sellerEmail ? String(data.sellerEmail).trim() : undefined,
+      images,
     } satisfies CreateListingInput;
   })
   .handler(async ({ data, context }): Promise<CreateListingResult> => {
@@ -99,7 +116,7 @@ export const createListing = createServerFn({ method: "POST" })
           id, kind, title, make, model, year, price, location, status,
           description, fuel, transmission, body, mileage,
           category, condition, fitment, brand, oem, stock,
-          seller_name, seller_phone, seller_email, user_id, published
+          seller_name, seller_phone, seller_email, user_id, published, images
         ) values (
           ${id}, ${data.kind}, ${data.title}, ${data.make}, ${data.model},
           ${data.year ?? null}, ${data.price}, ${data.location}, ${data.status},
@@ -108,7 +125,7 @@ export const createListing = createServerFn({ method: "POST" })
           ${data.category ?? null}, ${data.condition ?? null}, ${data.fitment ?? null},
           ${data.brand ?? null}, ${data.oem ?? null}, ${data.stock ?? null},
           ${data.sellerName}, ${data.sellerPhone}, ${data.sellerEmail ?? null},
-          ${context.userId}, false
+          ${context.userId}, false, ${JSON.stringify(data.images)}::jsonb
         )
       `;
       return { ok: true, id };

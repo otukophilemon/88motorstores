@@ -1,18 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Quote } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
-import { CarCard } from "@/components/car-card";
-import { UserListingGrid } from "@/components/user-listing-card";
+import { UserListingCard } from "@/components/user-listing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cars, nations, parts, yards } from "@/lib/catalog";
-import { kesShort } from "@/lib/format";
-import { getPublishedCars } from "@/lib/listings/public-server";
-import type { PublicListing } from "@/lib/listings/public-server";
+import { nations, parts as demoParts, cars as demoCars } from "@/lib/catalog";
+import {
+  getMarketplaceStats,
+  getPrivateMixedListings,
+  getYardMixedListings,
+  getPrivateCars,
+  getYardCars,
+  getPrivateParts,
+  getYardParts,
+  type MarketplaceStats,
+  type PublicListing,
+} from "@/lib/listings/public-server";
 
 export const Route = createFileRoute("/")({ component: Home });
 
-// TODO: replace with real testimonials once you have them.
 const TESTIMONIALS = [
   {
     quote:
@@ -37,20 +43,44 @@ const TESTIMONIALS = [
 function Home() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const [userCars, setUserCars] = useState<PublicListing[]>([]);
-  const featured = cars.filter((c) => c.featured);
-  const fresh = [...cars].sort((a, b) => a.daysListed - b.daysListed).slice(0, 4);
+
+  // Sections 2 & 3: mixed random feeds
+  const [privateMixed, setPrivateMixed] = useState<PublicListing[]>([]);
+  const [yardMixed, setYardMixed] = useState<PublicListing[]>([]);
+  // Sections 5 & 6: split by kind
+  const [privateCars, setPrivateCars] = useState<PublicListing[]>([]);
+  const [yardCars, setYardCars] = useState<PublicListing[]>([]);
+  const [privateParts, setPrivateParts] = useState<PublicListing[]>([]);
+  const [yardParts, setYardParts] = useState<PublicListing[]>([]);
+  const [stats, setStats] = useState<MarketplaceStats | null>(null);
 
   useEffect(() => {
-    void getPublishedCars()
-      .then(setUserCars)
-      .catch(() => setUserCars([]));
+    void Promise.all([
+      getPrivateMixedListings({ data: { limit: 8 } }).catch(() => []),
+      getYardMixedListings({ data: { limit: 8 } }).catch(() => []),
+      getPrivateCars({ data: { limit: 4 } }).catch(() => []),
+      getYardCars({ data: { limit: 4 } }).catch(() => []),
+      getPrivateParts({ data: { limit: 4 } }).catch(() => []),
+      getYardParts({ data: { limit: 4 } }).catch(() => []),
+      getMarketplaceStats().catch(() => null),
+    ]).then(([pm, ym, pc, yc, pp, yp, st]) => {
+      setPrivateMixed(pm);
+      setYardMixed(ym);
+      setPrivateCars(pc);
+      setYardCars(yc);
+      setPrivateParts(pp);
+      setYardParts(yp);
+      setStats(st);
+    });
   }, []);
 
   function search(e: FormEvent) {
     e.preventDefault();
     void navigate({ to: "/cars", search: { q: q.trim() || undefined } });
   }
+
+  const totalLive = demoCars.length + (stats?.listings ?? 0);
+  const totalParts = demoParts.length;
 
   return (
     <main>
@@ -92,50 +122,51 @@ function Home() {
             </Button>
           </form>
           <dl className="mt-10 grid max-w-xl grid-cols-3 gap-4">
-            <Stat label="Live cars" value={String(cars.length + userCars.length)} />
-            <Stat label="Parts" value={String(parts.length)} />
+            <Stat label="Live cars" value={String(totalLive)} />
+            <Stat label="Parts" value={String(totalParts)} />
             <Stat label="Clubs" value={String(nations.length)} />
           </dl>
         </div>
       </section>
 
-      {/* 2. FRESH FROM THE COMMUNITY (moved up — only when there are listings) */}
-      {userCars.length ? (
+      {/* 2. FROM OUR SELLERS — private, MIXED cars+parts */}
+      {privateMixed.length ? (
         <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
           <HeaderRow
             kicker="From our sellers"
             title="Fresh from the community"
             to="/cars"
-            link="All cars"
+            link="Browse all"
           />
-          <div className="mt-8">
-            <UserListingGrid listings={userCars.slice(0, 6)} />
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {privateMixed.map((l) => (
+              <UserListingCard key={l.id} listing={l} />
+            ))}
           </div>
         </section>
       ) : null}
 
-      {/* 3. FEATURED FROM THE YARDS */}
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <HeaderRow
-          kicker="This week"
-          title="Featured from the yards"
-          to="/cars"
-          link="All cars"
-        />
-        <div className="mt-8 grid gap-5">
-          {featured.slice(0, 2).map((car) => (
-            <CarCard key={car.id} car={car} featured />
-          ))}
-        </div>
-        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {featured.slice(2, 5).map((car) => (
-            <CarCard key={car.id} car={car} />
-          ))}
-        </div>
-      </section>
+      {/* 3. FEATURED FROM THE YARDS — yards/dealers, MIXED cars+parts */}
+      {yardMixed.length ? (
+        <section className="border-y border-border bg-card">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+            <HeaderRow
+              kicker="This week"
+              title="Featured from the yards"
+              to="/cars"
+              link="See stock"
+            />
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {yardMixed.map((l) => (
+                <UserListingCard key={l.id} listing={l} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* 4. TESTIMONIAL STRIP */}
-      <section className="border-y border-border bg-card">
+      <section className="border-b border-border">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
           <div className="max-w-2xl">
             <p className="text-xs uppercase tracking-[0.18em] text-primary">
@@ -149,7 +180,7 @@ function Home() {
             {TESTIMONIALS.map((t) => (
               <figure
                 key={t.name}
-                className="flex h-full flex-col justify-between rounded-xl bg-background p-6 shadow-[var(--shadow-border)]"
+                className="flex h-full flex-col justify-between rounded-xl bg-card p-6 shadow-[var(--shadow-border)]"
               >
                 <Quote className="size-6 text-primary/70" aria-hidden="true" />
                 <blockquote className="mt-4 text-base leading-relaxed text-foreground/90">
@@ -172,39 +203,71 @@ function Home() {
         </div>
       </section>
 
-      {/* 5. JUST IN */}
+      {/* 5. CARS — individual on top, yards below */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-        <HeaderRow kicker="Just in" title="Fresh on the floor" to="/cars" link="Browse" />
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {fresh.map((car) => (
-            <CarCard key={car.id} car={car} />
-          ))}
+        <HeaderRow kicker="Cars" title="Browse the floor" to="/cars" link="All cars" />
+
+        <div className="mt-10">
+          <RowLabel label="From individual sellers" />
+          {privateCars.length ? (
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {privateCars.map((l) => (
+                <UserListingCard key={l.id} listing={l} />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-5 text-sm text-muted-foreground">
+              No individual-seller cars yet.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-14">
+          <RowLabel label="From yards & dealers" />
+          {yardCars.length ? (
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {yardCars.map((l) => (
+                <UserListingCard key={l.id} listing={l} />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-5 text-sm text-muted-foreground">No yard cars yet.</p>
+          )}
         </div>
       </section>
 
-      {/* 6. PARTS */}
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-        <HeaderRow kicker="Spares" title="Parts with fitment" to="/parts" link="All parts" />
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {parts.slice(0, 4).map((p) => (
-            <Link
-              key={p.id}
-              to="/parts/$id"
-              params={{ id: p.id }}
-              className="overflow-hidden rounded-xl bg-card shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]"
-            >
-              <img src={p.image} alt="" className={`${p.crop} h-36 w-full`} />
-              <div className="p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {p.category}
-                </p>
-                <p className="mt-1 font-display text-lg font-semibold leading-tight">
-                  {p.title}
-                </p>
-                <p className="mt-2 font-display text-lg tabular-nums">{kesShort(p.price)}</p>
+      {/* 6. PARTS — individual on top, yards below */}
+      <section className="border-t border-border bg-card">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+          <HeaderRow kicker="Spares" title="Parts with fitment" to="/parts" link="All parts" />
+
+          <div className="mt-10">
+            <RowLabel label="From individual sellers" />
+            {privateParts.length ? (
+              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {privateParts.map((l) => (
+                  <UserListingCard key={l.id} listing={l} />
+                ))}
               </div>
-            </Link>
-          ))}
+            ) : (
+              <p className="mt-5 text-sm text-muted-foreground">
+                No individual-seller parts yet.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-14">
+            <RowLabel label="From yards & dealers" />
+            {yardParts.length ? (
+              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {yardParts.map((l) => (
+                  <UserListingCard key={l.id} listing={l} />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-5 text-sm text-muted-foreground">No yard parts yet.</p>
+            )}
+          </div>
         </div>
       </section>
 
@@ -239,36 +302,36 @@ function Home() {
         </div>
       </section>
 
-      {/* 8. YARDS */}
+      {/* 8. WHERE THE STOCK LIVES — live stats */}
       <section className="border-t border-border bg-card">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
-          <HeaderRow kicker="Yards" title="Where the stock lives" to="/cars" link="See stock" />
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {yards
-              .filter((y) => y.kind !== "Private")
-              .map((y) => (
-                <Link
-                  key={y.id}
-                  to="/yards/$id"
-                  params={{ id: y.id }}
-                  className="rounded-xl bg-background p-5 shadow-[var(--shadow-border)] transition-[box-shadow] hover:shadow-[var(--shadow-border-hover)]"
-                >
-                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {y.city} · est. {y.established}
-                  </p>
-                  <h3 className="mt-2 font-display text-2xl font-semibold">{y.name}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{y.bio}</p>
-                  <p className="mt-4 text-sm">
-                    {y.speciality} · {y.rating.toFixed(1)} desk score
-                  </p>
-                </Link>
-              ))}
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6">
+          <p className="text-xs uppercase tracking-[0.18em] text-primary">
+            The marketplace
+          </p>
+          <h2 className="mt-3 font-display text-3xl font-semibold sm:text-4xl">
+            Sellers from every corner of Kenya.
+          </h2>
+          <p className="mt-6 text-lg text-foreground/85 sm:text-xl">
+            {stats
+              ? `${stats.privateSellers}+ individual sellers · ${stats.yards} verified yards & dealers · across ${stats.cities} ${stats.cities === 1 ? "city" : "cities"} — all brought together on 88Motor Stores.`
+              : "Loading marketplace stats…"}
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Button asChild>
+              <Link to="/cars">
+                Browse cars
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/sell">List with us</Link>
+            </Button>
           </div>
         </div>
       </section>
 
       {/* 9. SELL CTA */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden border-t border-border">
         <img
           src="/images/cars/prado.jpg"
           alt=""
@@ -276,7 +339,9 @@ function Home() {
         />
         <div className="absolute inset-0 bg-background/70" />
         <div className="relative mx-auto flex max-w-7xl flex-col items-start gap-5 px-4 py-20 sm:px-6">
-          <p className="text-xs uppercase tracking-[0.22em] text-primary">Sell with 88Motor Stores</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-primary">
+            Sell with 88Motor Stores
+          </p>
           <h2 className="max-w-xl font-display text-4xl font-semibold sm:text-5xl">
             Market the car. Keep your number.
           </h2>
@@ -301,6 +366,14 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</dt>
       <dd className="font-display text-3xl font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function RowLabel({ label }: { label: string }) {
+  return (
+    <div className="border-b border-border pb-3">
+      <h3 className="font-display text-xl font-semibold">{label}</h3>
     </div>
   );
 }

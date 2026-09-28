@@ -10,8 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
 import { Route as CarsRouteImport } from './routes/cars'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as GarageRouteImport } from './routes/garage'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
@@ -23,6 +25,9 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PartsRouteImport } from './routes/parts'
 import { Route as SellRouteImport } from './routes/sell'
 import { Route as SignUpRouteImport } from './routes/sign-up'
+import { Route as AccountIndexRouteImport } from './routes/account.index'
+import { Route as AccountUpgradeRouteImport } from './routes/account.upgrade'
+import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as CarsIndexRouteImport } from './routes/cars.index'
 import { Route as CarsIdRouteImport } from './routes/cars.$id'
 import { Route as ListingsIdRouteImport } from './routes/listings.$id'
@@ -30,7 +35,7 @@ import { Route as NationsIndexRouteImport } from './routes/nations.index'
 import { Route as NationsSlugRouteImport } from './routes/nations.$slug'
 import { Route as PartsIndexRouteImport } from './routes/parts.index'
 import { Route as PartsIdRouteImport } from './routes/parts.$id'
-import { Route as YardsIdRouteImport } from './routes/yards.$id'
+import { Route as YardsSlugRouteImport } from './routes/yards.$slug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as NationsSlugIndexRouteImport } from './routes/nations.$slug.index'
 import { Route as NationsSlugThreadIdRouteImport } from './routes/nations.$slug.$threadId'
@@ -38,6 +43,11 @@ import { Route as NationsSlugThreadIdRouteImport } from './routes/nations.$slug.
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountRoute = AccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CarsRoute = CarsRouteImport.update({
@@ -48,6 +58,11 @@ const CarsRoute = CarsRouteImport.update({
 const CompareRoute = CompareRouteImport.update({
   id: '/compare',
   path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeskRoute = DeskRouteImport.update({
@@ -105,6 +120,21 @@ const SignUpRoute = SignUpRouteImport.update({
   path: '/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountIndexRoute = AccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AccountRoute,
+} as any)
+const AccountUpgradeRoute = AccountUpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
+  getParentRoute: () => AccountRoute,
+} as any)
+const ApiUploadRoute = ApiUploadRouteImport.update({
+  id: '/api/upload',
+  path: '/api/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CarsIndexRoute = CarsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -140,9 +170,9 @@ const PartsIdRoute = PartsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => PartsRoute,
 } as any)
-const YardsIdRoute = YardsIdRouteImport.update({
-  id: '/yards/$id',
-  path: '/yards/$id',
+const YardsSlugRoute = YardsSlugRouteImport.update({
+  id: '/yards/$slug',
+  path: '/yards/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -163,8 +193,10 @@ const NationsSlugThreadIdRoute = NationsSlugThreadIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteWithChildren
   '/cars': typeof CarsRouteWithChildren
   '/compare': typeof CompareRoute
+  '/contact': typeof ContactRoute
   '/desk': typeof DeskRoute
   '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
@@ -176,11 +208,14 @@ export interface FileRoutesByFullPath {
   '/parts': typeof PartsRouteWithChildren
   '/sell': typeof SellRoute
   '/sign-up': typeof SignUpRoute
+  '/account/upgrade': typeof AccountUpgradeRoute
+  '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
   '/listings/$id': typeof ListingsIdRoute
   '/nations/$slug': typeof NationsSlugRouteWithChildren
   '/parts/$id': typeof PartsIdRoute
-  '/yards/$id': typeof YardsIdRoute
+  '/yards/$slug': typeof YardsSlugRoute
+  '/account/': typeof AccountIndexRoute
   '/cars/': typeof CarsIndexRoute
   '/nations/': typeof NationsIndexRoute
   '/parts/': typeof PartsIndexRoute
@@ -191,6 +226,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
+  '/contact': typeof ContactRoute
   '/desk': typeof DeskRoute
   '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
@@ -200,10 +236,13 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/sell': typeof SellRoute
   '/sign-up': typeof SignUpRoute
+  '/account/upgrade': typeof AccountUpgradeRoute
+  '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
   '/listings/$id': typeof ListingsIdRoute
   '/parts/$id': typeof PartsIdRoute
-  '/yards/$id': typeof YardsIdRoute
+  '/yards/$slug': typeof YardsSlugRoute
+  '/account': typeof AccountIndexRoute
   '/cars': typeof CarsIndexRoute
   '/nations': typeof NationsIndexRoute
   '/parts': typeof PartsIndexRoute
@@ -214,8 +253,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/account': typeof AccountRouteWithChildren
   '/cars': typeof CarsRouteWithChildren
   '/compare': typeof CompareRoute
+  '/contact': typeof ContactRoute
   '/desk': typeof DeskRoute
   '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
@@ -227,11 +268,14 @@ export interface FileRoutesById {
   '/parts': typeof PartsRouteWithChildren
   '/sell': typeof SellRoute
   '/sign-up': typeof SignUpRoute
+  '/account/upgrade': typeof AccountUpgradeRoute
+  '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
   '/listings/$id': typeof ListingsIdRoute
   '/nations/$slug': typeof NationsSlugRouteWithChildren
   '/parts/$id': typeof PartsIdRoute
-  '/yards/$id': typeof YardsIdRoute
+  '/yards/$slug': typeof YardsSlugRoute
+  '/account/': typeof AccountIndexRoute
   '/cars/': typeof CarsIndexRoute
   '/nations/': typeof NationsIndexRoute
   '/parts/': typeof PartsIndexRoute
@@ -243,8 +287,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/account'
     | '/cars'
     | '/compare'
+    | '/contact'
     | '/desk'
     | '/garage'
     | '/how-it-works'
@@ -256,11 +302,14 @@ export interface FileRouteTypes {
     | '/parts'
     | '/sell'
     | '/sign-up'
+    | '/account/upgrade'
+    | '/api/upload'
     | '/cars/$id'
     | '/listings/$id'
     | '/nations/$slug'
     | '/parts/$id'
-    | '/yards/$id'
+    | '/yards/$slug'
+    | '/account/'
     | '/cars/'
     | '/nations/'
     | '/parts/'
@@ -271,6 +320,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/compare'
+    | '/contact'
     | '/desk'
     | '/garage'
     | '/how-it-works'
@@ -280,10 +330,13 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/sell'
     | '/sign-up'
+    | '/account/upgrade'
+    | '/api/upload'
     | '/cars/$id'
     | '/listings/$id'
     | '/parts/$id'
-    | '/yards/$id'
+    | '/yards/$slug'
+    | '/account'
     | '/cars'
     | '/nations'
     | '/parts'
@@ -293,8 +346,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/account'
     | '/cars'
     | '/compare'
+    | '/contact'
     | '/desk'
     | '/garage'
     | '/how-it-works'
@@ -306,11 +361,14 @@ export interface FileRouteTypes {
     | '/parts'
     | '/sell'
     | '/sign-up'
+    | '/account/upgrade'
+    | '/api/upload'
     | '/cars/$id'
     | '/listings/$id'
     | '/nations/$slug'
     | '/parts/$id'
-    | '/yards/$id'
+    | '/yards/$slug'
+    | '/account/'
     | '/cars/'
     | '/nations/'
     | '/parts/'
@@ -321,8 +379,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccountRoute: typeof AccountRouteWithChildren
   CarsRoute: typeof CarsRouteWithChildren
   CompareRoute: typeof CompareRoute
+  ContactRoute: typeof ContactRoute
   DeskRoute: typeof DeskRoute
   GarageRoute: typeof GarageRoute
   HowItWorksRoute: typeof HowItWorksRoute
@@ -334,8 +394,9 @@ export interface RootRouteChildren {
   PartsRoute: typeof PartsRouteWithChildren
   SellRoute: typeof SellRoute
   SignUpRoute: typeof SignUpRoute
+  ApiUploadRoute: typeof ApiUploadRoute
   ListingsIdRoute: typeof ListingsIdRoute
-  YardsIdRoute: typeof YardsIdRoute
+  YardsSlugRoute: typeof YardsSlugRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -346,6 +407,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account': {
+      id: '/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cars': {
@@ -360,6 +428,13 @@ declare module '@tanstack/react-router' {
       path: '/compare'
       fullPath: '/compare'
       preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/desk': {
@@ -439,6 +514,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account/': {
+      id: '/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AccountIndexRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/account/upgrade': {
+      id: '/account/upgrade'
+      path: '/upgrade'
+      fullPath: '/account/upgrade'
+      preLoaderRoute: typeof AccountUpgradeRouteImport
+      parentRoute: typeof AccountRoute
+    }
+    '/api/upload': {
+      id: '/api/upload'
+      path: '/api/upload'
+      fullPath: '/api/upload'
+      preLoaderRoute: typeof ApiUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cars/': {
       id: '/cars/'
       path: '/'
@@ -488,11 +584,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartsIdRouteImport
       parentRoute: typeof PartsRoute
     }
-    '/yards/$id': {
-      id: '/yards/$id'
-      path: '/yards/$id'
-      fullPath: '/yards/$id'
-      preLoaderRoute: typeof YardsIdRouteImport
+    '/yards/$slug': {
+      id: '/yards/$slug'
+      path: '/yards/$slug'
+      fullPath: '/yards/$slug'
+      preLoaderRoute: typeof YardsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -518,6 +614,19 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AccountRouteChildren {
+  AccountUpgradeRoute: typeof AccountUpgradeRoute
+  AccountIndexRoute: typeof AccountIndexRoute
+}
+
+const AccountRouteChildren: AccountRouteChildren = {
+  AccountUpgradeRoute: AccountUpgradeRoute,
+  AccountIndexRoute: AccountIndexRoute,
+}
+
+const AccountRouteWithChildren =
+  AccountRoute._addFileChildren(AccountRouteChildren)
 
 interface CarsRouteChildren {
   CarsIdRoute: typeof CarsIdRoute
@@ -572,8 +681,10 @@ const PartsRouteWithChildren = PartsRoute._addFileChildren(PartsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccountRoute: AccountRouteWithChildren,
   CarsRoute: CarsRouteWithChildren,
   CompareRoute: CompareRoute,
+  ContactRoute: ContactRoute,
   DeskRoute: DeskRoute,
   GarageRoute: GarageRoute,
   HowItWorksRoute: HowItWorksRoute,
@@ -585,8 +696,9 @@ const rootRouteChildren: RootRouteChildren = {
   PartsRoute: PartsRouteWithChildren,
   SellRoute: SellRoute,
   SignUpRoute: SignUpRoute,
+  ApiUploadRoute: ApiUploadRoute,
   ListingsIdRoute: ListingsIdRoute,
-  YardsIdRoute: YardsIdRoute,
+  YardsSlugRoute: YardsSlugRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

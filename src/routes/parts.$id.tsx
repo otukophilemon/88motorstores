@@ -4,7 +4,7 @@ import { EnquireDialog } from "@/components/enquire-dialog";
 import { PartCard } from "@/components/part-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { partById, parts, yardById } from "@/lib/catalog";
+import { partById, parts } from "@/lib/catalog";
 import { kes } from "@/lib/format";
 import { useGarii } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,6 @@ function PartDetail() {
   const { id } = Route.useParams();
   const part = partById(id);
   if (!part) throw notFound();
-  const yard = yardById(part.sellerId);
   const saved = useGarii((s) => s.savedParts.includes(part.id));
   const toggle = useGarii((s) => s.toggleSavedPart);
   const related = parts.filter((p) => p.category === part.category && p.id !== part.id).slice(0, 3);
@@ -55,9 +54,6 @@ function PartDetail() {
             <p className="mt-4 text-sm">
               Fits {part.fitment.join(", ")}
             </p>
-            {yard ? (
-              <p className="mt-2 text-sm text-muted-foreground">Seller · {yard.name}</p>
-            ) : null}
             <div className="mt-6 flex flex-col gap-2">
               <EnquireDialog
                 kind="part"

@@ -1,31 +1,41 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  BadgeCheck,
   Check,
   ExternalLink,
   Mail,
   MapPin,
   MessageCircle,
   Phone,
+  Store,
   Trash2,
+  TrendingUp,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SignedIn, SignedOut, RedirectToSignIn } from "@/lib/auth/gates";
+import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { kes } from "@/lib/format";
 import {
+  approveYardApplication,
   deleteListing,
   getEnquiries,
+  getGraduationCandidates,
   getPendingListings,
+  getPendingYardApplications,
   getPublishedListings,
   markEnquiryIntroduced,
+  markListingSold,
   publishListing,
+  rejectYardApplication,
   unpublishListing,
   type AdminEnquiry,
   type AdminListing,
+  type GraduationCandidate,
+  type YardApplication,
 } from "@/lib/listings/admin-server";
 
 export const Route = createFileRoute("/desk")({ component: DeskPage });
@@ -35,17 +45,34 @@ type AccessState = "loading" | "signed_out" | "signed_in";
 function DeskPage() {
   const { user, isPending } = useCurrentUserState();
   const [authorized, setAuthorized] = useState<AccessState>("loading");
-
-  // Actually checking role requires calling a server function. We use
-  // getPendingListings as the canary — if it returns, you're admin. If it
-  // throws Forbidden, you're not.
-  const [pending, setPending] = useState<AdminListing[] | null>(null);
-  const [published, setPublished] = useState<AdminListing[] | null>(null);
-  const [enquiries, setEnquiries] = useState<AdminEnquiry[] | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Load on mount (client-side only — this is an admin tool).
+  const [pending, setPending] = useState<AdminListing[] | null>(null);
+  const [published, setPublished] = useState<AdminListing[] | null>(null);
+  const [enquiries, setEnquiries] = useState<AdminEnquiry[] | null>(null);
+  const [yards, setYards] = useState<YardApplication[] | null>(null);
+  const [candidates, setCandidates] = useState<GraduationCandidate[] | null>(null);
+
+  async function refreshAll() {
+    try {
+      const [p, pub, enq, y, c] = await Promise.all([
+        getPendingListings(),
+        getPublishedListings(),
+        getEnquiries(),
+        getPendingYardApplications(),
+        getGraduationCandidates(),
+      ]);
+      setPending(p);
+      setPublished(pub);
+      setEnquiries(enq);
+      setYards(y);
+      setCandidates(c);
+    } catch (err) {
+      toast.error("Refresh failed: " + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
   if (!loaded && !isPending) {
     setLoaded(true);
     if (!user) {
@@ -53,14 +80,7 @@ function DeskPage() {
     } else {
       void (async () => {
         try {
-          const [p, pub, enq] = await Promise.all([
-            getPendingListings(),
-            getPublishedListings(),
-            getEnquiries(),
-          ]);
-          setPending(p);
-          setPublished(pub);
-          setEnquiries(enq);
+          await refreshAll();
           setAuthorized("signed_in");
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -86,9 +106,7 @@ function DeskPage() {
     );
   }
 
-  if (authorized === "signed_out") {
-    return <RedirectToSignIn />;
-  }
+  if (authorized === "signed_out") return <RedirectToSignIn />;
 
   if (forbidden) {
     return (
@@ -111,51 +129,70 @@ function DeskPage() {
       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Operator</p>
       <h1 className="font-display text-4xl font-semibold">88Motor Stores desk</h1>
       <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-        Review submitted listings, publish what’s ready, and track buyer
-        introductions. Seller contacts are visible here only.
+        Review listings, approve sellers, and track introductions. Seller
+        contacts are visible here only.
       </p>
 
-      <section className="mt-8 rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-border)]">
-        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          Reach the desk
-        </p>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-          <li>
-            <a
-              href="tel:+254769679667"
-              className="flex items-center gap-2 text-sm transition-colors hover:text-primary"
-            >
-              <Phone className="size-4 shrink-0" />
-              <span>Call · +254 769 679 667</span>
-            </a>
-          </li>
-          <li>
-            <a
-              href="https://wa.me/254769679667"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm transition-colors hover:text-primary"
-            >
-              <MessageCircle className="size-4 shrink-0" />
-              <span>WhatsApp the desk</span>
-            </a>
-          </li>
-          <li className="sm:col-span-2">
-            <a
-              href="mailto:otuko88motorstores@gmail.com"
-              className="flex items-center gap-2 break-all text-sm transition-colors hover:text-primary"
-            >
-              <Mail className="size-4 shrink-0" />
-              <span>otuko88motorstores@gmail.com</span>
-            </a>
-          </li>
-          <li className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
-            <MapPin className="size-4 shrink-0" />
-            <span>Nakuru, Kenya</span>
-          </li>
-        </ul>
+      {/* Yard applications */}
+      <section className="mt-10">
+        <h2 className="font-display text-2xl font-semibold">
+          Yard applications
+          {yards ? (
+            <span className="ml-2 text-base font-normal text-muted-foreground">
+              ({yards.length} pending)
+            </span>
+          ) : null}
+        </h2>
+        {yards === null ? (
+          <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
+        ) : yards.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No pending applications.
+          </p>
+        ) : (
+          <ul className="mt-4 grid gap-4">
+            {yards.map((y) => (
+              <YardApplicationCard
+                key={y.userId}
+                application={y}
+                onChange={refreshAll}
+              />
+            ))}
+          </ul>
+        )}
       </section>
 
+      {/* Graduation candidates */}
+      {candidates && candidates.length > 0 ? (
+        <section className="mt-12">
+          <h2 className="font-display text-2xl font-semibold">
+            <TrendingUp className="mr-2 inline size-5 text-primary" />
+            Ready for promotion
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Private sellers with 8+ completed deals and 4+ months active.
+          </p>
+          <ul className="mt-4 grid gap-3">
+            {candidates.map((c) => (
+              <li
+                key={c.userId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card p-5 shadow-[var(--shadow-border)]"
+              >
+                <div>
+                  <p className="font-display text-lg font-semibold">{c.name}</p>
+                  <p className="text-sm text-muted-foreground">{c.email}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {c.completedDeals} deals · {c.monthsActive} months active
+                  </p>
+                </div>
+                <Badge variant="outline">Candidate</Badge>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* Pending listings */}
       <section className="mt-12">
         <h2 className="font-display text-2xl font-semibold">
           Pending listings
@@ -174,18 +211,13 @@ function DeskPage() {
         ) : (
           <ul className="mt-4 grid gap-4">
             {pending.map((l) => (
-              <ListingCard
-                key={l.id}
-                listing={l}
-                onChange={() => {
-                  void refresh(setPending, setPublished, setEnquiries);
-                }}
-              />
+              <ListingCard key={l.id} listing={l} onChange={refreshAll} />
             ))}
           </ul>
         )}
       </section>
 
+      {/* Published listings */}
       <section className="mt-12">
         <h2 className="font-display text-2xl font-semibold">
           Published
@@ -198,24 +230,17 @@ function DeskPage() {
         {published === null ? (
           <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
         ) : published.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">
-            Nothing published yet.
-          </p>
+          <p className="mt-4 text-sm text-muted-foreground">Nothing published yet.</p>
         ) : (
           <ul className="mt-4 grid gap-4">
             {published.map((l) => (
-              <ListingCard
-                key={l.id}
-                listing={l}
-                onChange={() => {
-                  void refresh(setPending, setPublished, setEnquiries);
-                }}
-              />
+              <ListingCard key={l.id} listing={l} onChange={refreshAll} />
             ))}
           </ul>
         )}
       </section>
 
+      {/* Enquiries */}
       <section className="mt-12 mb-16">
         <h2 className="font-display text-2xl font-semibold">
           Buyer enquiries
@@ -234,13 +259,7 @@ function DeskPage() {
         ) : (
           <ul className="mt-4 grid gap-3">
             {enquiries.map((e) => (
-              <EnquiryCard
-                key={e.id}
-                enquiry={e}
-                onChange={() => {
-                  void refresh(setPending, setPublished, setEnquiries);
-                }}
-              />
+              <EnquiryCard key={e.id} enquiry={e} onChange={refreshAll} />
             ))}
           </ul>
         )}
@@ -249,24 +268,122 @@ function DeskPage() {
   );
 }
 
-async function refresh(
-  setPending: (v: AdminListing[]) => void,
-  setPublished: (v: AdminListing[]) => void,
-  setEnquiries: (v: AdminEnquiry[]) => void,
-) {
-  try {
-    const [p, pub, enq] = await Promise.all([
-      getPendingListings(),
-      getPublishedListings(),
-      getEnquiries(),
-    ]);
-    setPending(p);
-    setPublished(pub);
-    setEnquiries(enq);
-  } catch (err) {
-    toast.error("Refresh failed: " + (err instanceof Error ? err.message : String(err)));
+// ─── Yard application card ───────────────────────────────────────────────
+
+function YardApplicationCard({
+  application,
+  onChange,
+}: {
+  application: YardApplication;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function act(
+    label: string,
+    fn: () => Promise<{ ok: boolean; error?: string }>,
+  ) {
+    setBusy(true);
+    try {
+      const r = await fn();
+      if (r.ok) {
+        toast.success(label);
+        onChange();
+      } else {
+        toast.error(r.error ?? "Action failed.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
   }
+
+  return (
+    <li className="rounded-xl border border-primary/40 bg-card p-5 shadow-[var(--shadow-border)]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Pending</Badge>
+            <Badge variant="muted">Upgrade request</Badge>
+          </div>
+          <h3 className="mt-2 font-display text-xl font-semibold">
+            {application.businessName ?? application.name}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Owner: {application.name} · {application.email}
+          </p>
+          {application.city ? (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="size-3.5" />
+              {application.city}
+            </p>
+          ) : null}
+          {application.slug ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Requested URL: <code>/yards/{application.slug}</code>
+            </p>
+          ) : null}
+          {application.bio ? (
+            <p className="mt-3 text-sm">{application.bio}</p>
+          ) : null}
+          <p className="mt-3 text-xs text-muted-foreground">
+            {application.completedDeals} completed deals · member since{" "}
+            {new Date(application.memberSince).toLocaleDateString("en-KE")}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() =>
+              act("Approved as dealer.", () =>
+                approveYardApplication({
+                  data: { userId: application.userId, type: "dealer" },
+                }),
+              )
+            }
+          >
+            <Check className="size-3.5" />
+            Approve as Dealer
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() =>
+              act("Approved as yard.", () =>
+                approveYardApplication({
+                  data: { userId: application.userId, type: "yard" },
+                }),
+              )
+            }
+          >
+            <Store className="size-3.5" />
+            Approve as Yard
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              if (!confirm(`Reject ${application.name}'s application?`)) return;
+              void act("Application rejected.", () =>
+                rejectYardApplication({ data: { userId: application.userId } }),
+              );
+            }}
+          >
+            <X className="size-3.5" />
+            Reject
+          </Button>
+        </div>
+      </div>
+    </li>
+  );
 }
+
+// ─── Listing card ────────────────────────────────────────────────────────
 
 function ListingCard({
   listing,
@@ -277,7 +394,7 @@ function ListingCard({
 }) {
   const [busy, setBusy] = useState(false);
 
-  async function run(label: string, fn: () => Promise<{ ok: boolean }>) {
+  async function run(label: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(true);
     try {
       const r = await fn();
@@ -285,7 +402,7 @@ function ListingCard({
         toast.success(label);
         onChange();
       } else {
-        toast.error("Action failed.");
+        toast.error(r.error ?? "Action failed.");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed.");
@@ -303,18 +420,58 @@ function ListingCard({
   if (listing.brand) specs.push(listing.brand);
   if (listing.category) specs.push(listing.category);
 
+  const isSold = Boolean(listing.soldAt);
+
   return (
-    <li className="rounded-xl bg-card p-5 shadow-[var(--shadow-border)]">
+    <li
+      className={
+        isSold
+          ? "rounded-xl border border-border bg-card/50 p-5 shadow-[var(--shadow-border)]"
+          : "rounded-xl bg-card p-5 shadow-[var(--shadow-border)]"
+      }
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={listing.published ? "default" : "muted"}>
               {listing.published ? "Published" : "Pending"}
             </Badge>
+            {isSold ? <Badge variant="good">Sold</Badge> : null}
             <Badge variant="outline">{listing.kind}</Badge>
             <Badge variant="outline">{listing.status}</Badge>
           </div>
-          <h3 className="mt-2 font-display text-xl font-semibold">{listing.title}</h3>
+
+          {/* Photo strip */}
+          {listing.images.length ? (
+            <div className="mt-3 flex gap-2 overflow-x-auto">
+              {listing.images.slice(0, 6).map((url, i) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative size-16 shrink-0 overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80"
+                  title={`Photo ${i + 1} — click to open`}
+                >
+                  <img
+                    src={url}
+                    alt=""
+                    className="size-full object-cover"
+                    loading="lazy"
+                  />
+                </a>
+              ))}
+              {listing.images.length > 6 ? (
+                <div className="flex size-16 shrink-0 items-center justify-center rounded-md border border-border bg-secondary text-xs text-muted-foreground">
+                  +{listing.images.length - 6}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">No photos</p>
+          )}
+
+          <h3 className="mt-3 font-display text-xl font-semibold">{listing.title}</h3>
           <p className="mt-1 text-sm">
             {kes(listing.price)} · {listing.location}
             {listing.make ? ` · ${listing.make}` : ""}
@@ -361,6 +518,9 @@ function ListingCard({
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Submitted {new Date(listing.createdAt).toLocaleString("en-KE")}
+            {isSold && listing.soldAt
+              ? ` · Sold ${new Date(listing.soldAt).toLocaleDateString("en-KE")}`
+              : ""}
           </p>
         </div>
 
@@ -385,31 +545,39 @@ function ListingCard({
               Unpublish
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            asChild
-            disabled={listing.kind === "car" && !listing.published}
-          >
-            <Link
-              to={
-                listing.published
-                  ? listing.kind === "car"
-                    ? "/cars/$id"
-                    : "/parts/$id"
-                  : "/desk"
-              }
-              params={
-                listing.published
-                  ? { id: listing.id }
-                  : undefined
-              }
-              target="_blank"
+          {listing.published && !isSold ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  !confirm(
+                    `Mark "${listing.title}" as sold? This will increment the seller's completed-deals counter.`,
+                  )
+                )
+                  return;
+                void run("Marked as sold.", () =>
+                  markListingSold({ data: { id: listing.id } }),
+                );
+              }}
             >
-              <ExternalLink className="size-3.5" />
-              View
-            </Link>
-          </Button>
+              <BadgeCheck className="size-3.5" />
+              Mark as sold
+            </Button>
+          ) : null}
+                    {listing.published ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link
+                to="/listings/$id"
+                params={{ id: listing.id }}
+                target="_blank"
+              >
+                <ExternalLink className="size-3.5" />
+                View
+              </Link>
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="ghost"
@@ -427,6 +595,8 @@ function ListingCard({
     </li>
   );
 }
+
+// ─── Enquiry card ────────────────────────────────────────────────────────
 
 function EnquiryCard({
   enquiry,

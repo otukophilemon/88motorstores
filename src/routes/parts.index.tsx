@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PartCard } from "@/components/part-card";
-import { UserListingGrid } from "@/components/user-listing-card";
+import { UserListingCard } from "@/components/user-listing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { CITIES, PART_CATEGORIES, parts } from "@/lib/catalog";
-import { getPublishedParts } from "@/lib/listings/public-server";
-import type { PublicListing } from "@/lib/listings/public-server";
+import {
+  CITIES,
+  PART_CATEGORIES,
+  parts,
+} from "@/lib/catalog";
+import {
+  getPrivateParts,
+  getYardParts,
+  type PublicListing,
+} from "@/lib/listings/public-server";
 
 export type PartsSearch = {
   q?: string;
@@ -39,34 +46,46 @@ function PartsPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const [open, setOpen] = useState(false);
-  const [userParts, setUserParts] = useState<PublicListing[]>([]);
+  const [privateParts, setPrivateParts] = useState<PublicListing[]>([]);
+  const [yardParts, setYardParts] = useState<PublicListing[]>([]);
 
   useEffect(() => {
-    void getPublishedParts()
-      .then(setUserParts)
-      .catch(() => setUserParts([]));
+    void Promise.all([
+      getPrivateParts({ data: { limit: 12 } }).catch(() => []),
+      getYardParts({ data: { limit: 12 } }).catch(() => []),
+    ]).then(([pp, yp]) => {
+      setPrivateParts(pp);
+      setYardParts(yp);
+    });
   }, []);
 
-  const filteredUserParts = useMemo(() => {
-    let list = [...userParts];
+  function applyFilters(list: PublicListing[]): PublicListing[] {
+    let out = [...list];
     const q = search.q?.toLowerCase().trim();
     if (q) {
-      list = list.filter((p) =>
+      out = out.filter((p) =>
         `${p.title} ${p.brand ?? ""} ${p.category ?? ""} ${p.location}`
           .toLowerCase()
           .includes(q),
       );
     }
-    if (search.category) {
-      list = list.filter((p) => p.category === search.category);
-    }
+    if (search.category) out = out.filter((p) => p.category === search.category);
     if (search.city) {
-      list = list.filter((p) =>
+      out = out.filter((p) =>
         p.location.toLowerCase().includes((search.city ?? "").toLowerCase()),
       );
     }
-    return list;
-  }, [userParts, search]);
+    return out;
+  }
+
+  const filteredPrivateParts = useMemo(
+    () => applyFilters(privateParts),
+    [privateParts, search],
+  );
+  const filteredYardParts = useMemo(
+    () => applyFilters(yardParts),
+    [yardParts, search],
+  );
 
   const filteredDemo = useMemo(() => {
     let list = [...parts];
@@ -89,7 +108,8 @@ function PartsPage() {
     return list;
   }, [search]);
 
-  const totalCount = filteredUserParts.length + filteredDemo.length;
+  const totalCount =
+    filteredPrivateParts.length + filteredYardParts.length + filteredDemo.length;
 
   function patch(next: Partial<PartsSearch>) {
     void navigate({
@@ -104,6 +124,10 @@ function PartsPage() {
   }
 
   const filters = <Filters search={search} onPatch={patch} />;
+  const noResults =
+    filteredPrivateParts.length === 0 &&
+    filteredYardParts.length === 0 &&
+    filteredDemo.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -145,44 +169,48 @@ function PartsPage() {
       <div className="mt-8 flex gap-8">
         <aside className="hidden w-64 shrink-0 lg:block">{filters}</aside>
         <div className="min-w-0 flex-1">
-          {filteredUserParts.length ? (
+          {/* Individual sellers */}
+          {filteredPrivateParts.length ? (
             <section className="mb-12">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-primary">
-                    From our sellers
-                  </p>
-                  <h2 className="mt-1 font-display text-2xl font-semibold">
-                    Listed by the community
-                  </h2>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {filteredUserParts.length}{" "}
-                  {filteredUserParts.length === 1 ? "listing" : "listings"}
-                </p>
-              </div>
-              <div className="mt-6">
-                <UserListingGrid listings={filteredUserParts} />
+              <SectionHeader
+                kicker="From our sellers"
+                title="From individual sellers"
+                count={filteredPrivateParts.length}
+                unit="listing"
+              />
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredPrivateParts.map((l) => (
+                  <UserListingCard key={l.id} listing={l} />
+                ))}
               </div>
             </section>
           ) : null}
 
-          <section>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                  Yards &amp; specialists
-                </p>
-                <h2 className="mt-1 font-display text-2xl font-semibold">
-                  From established sellers
-                </h2>
+          {/* Yards & dealers */}
+          {filteredYardParts.length ? (
+            <section className="mb-12">
+              <SectionHeader
+                kicker="Yards & dealers"
+                title="From established sellers"
+                count={filteredYardParts.length}
+                unit="listing"
+              />
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredYardParts.map((l) => (
+                  <UserListingCard key={l.id} listing={l} />
+                ))}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {filteredDemo.length}{" "}
-                {filteredDemo.length === 1 ? "part" : "parts"}
-              </p>
-            </div>
+            </section>
+          ) : null}
 
+          {/* Demo parts (featured) */}
+          <section>
+            <SectionHeader
+              kicker="Featured"
+              title="Starter inventory"
+              count={filteredDemo.length}
+              unit="part"
+            />
             <div className="mt-6">
               {filteredDemo.length === 0 ? (
                 <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
@@ -197,16 +225,16 @@ function PartsPage() {
                 </div>
               ) : (
                 <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredDemo.map((part) => (
-                    <PartCard key={part.id} part={part} />
+                  {filteredDemo.map((p) => (
+                    <PartCard key={p.id} part={p} />
                   ))}
                 </div>
               )}
             </div>
           </section>
 
-          {filteredUserParts.length === 0 && filteredDemo.length === 0 ? (
-            <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
+          {noResults ? (
+            <div className="mt-8 rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
               <p className="font-display text-2xl">Nothing in that aisle.</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Loosen the filters or{" "}
@@ -226,6 +254,32 @@ function PartsPage() {
         </SheetContent>
       </Sheet>
     </main>
+  );
+}
+
+function SectionHeader({
+  kicker,
+  title,
+  count,
+  unit,
+}: {
+  kicker: string;
+  title: string;
+  count: number;
+  unit: string;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-4">
+      <div>
+        <p className="text-xs uppercase tracking-[0.18em] text-primary">
+          {kicker}
+        </p>
+        <h2 className="mt-1 font-display text-2xl font-semibold">{title}</h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {count} {count === 1 ? unit : `${unit}s`}
+      </p>
+    </div>
   );
 }
 

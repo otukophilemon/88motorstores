@@ -39,6 +39,8 @@ export type AdminListing = {
   sellerEmail: string | null;
   userId: string | null;
   published: boolean;
+  soldAt: string | null;
+  images: string[];
   createdAt: string;
 };
 
@@ -54,6 +56,19 @@ export type AdminEnquiry = {
   createdAt: string;
   introducedAt: string | null;
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+function iso(v: string | Date): string {
+  return typeof v === "string" ? v : v.toISOString();
+}
+
+function isoOrNull(v: string | Date | null | undefined): string | null {
+  if (v == null) return null;
+  return typeof v === "string" ? v : v.toISOString();
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Row → typed object mappers
@@ -85,6 +100,8 @@ type ListingRow = {
   seller_email: string | null;
   user_id: string | null;
   published: boolean;
+  sold_at: string | Date | null;
+  images: unknown;
   created_at: string | Date;
 };
 
@@ -115,7 +132,9 @@ function toAdminListing(r: ListingRow): AdminListing {
     sellerEmail: r.seller_email,
     userId: r.user_id,
     published: r.published,
-    createdAt: typeof r.created_at === "string" ? r.created_at : r.created_at.toISOString(),
+    soldAt: isoOrNull(r.sold_at),
+    images: Array.isArray(r.images) ? (r.images as string[]) : [],
+    createdAt: iso(r.created_at),
   };
 }
 
@@ -142,13 +161,8 @@ function toAdminEnquiry(r: EnquiryRow): AdminEnquiry {
     buyerCity: r.buyer_city,
     message: r.message,
     status: r.status as AdminEnquiry["status"],
-    createdAt: typeof r.created_at === "string" ? r.created_at : r.created_at.toISOString(),
-    introducedAt:
-      r.introduced_at == null
-        ? null
-        : typeof r.introduced_at === "string"
-          ? r.introduced_at
-          : r.introduced_at.toISOString(),
+    createdAt: iso(r.created_at),
+    introducedAt: isoOrNull(r.introduced_at),
   };
 }
 
@@ -222,6 +236,51 @@ export const deleteListing = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const markListingSold = createServerFn({ method: "POST" })
+  .middleware([adminMiddleware])
+  .validator((data: { id: string }) => {
+    if (!data?.id || typeof data.id !== "string") throw new Error("Missing listing id.");
+    return { id: data.id };
+  })
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const sql = await getSql();
+
+      const rows = await sql<{
+        user_id: string | null;
+        sold_at: string | Date | null;
+      }>`
+        select user_id, sold_at from listings where id = ${data.id} limit 1
+      `;
+      const listing = rows[0];
+      if (!listing) return { ok: false, error: "Listing not found." };
+      if (listing.sold_at) return { ok: false, error: "Already marked as sold." };
+
+      await sql`
+        update listings set
+          status = 'Sold',
+          sold_at = now(),
+          updated_at = now()
+        where id = ${data.id}
+      `;
+
+      if (listing.user_id) {
+        await sql`
+          update "user" set completed_deals = completed_deals + 1
+          where id = ${listing.user_id}
+        `;
+      }
+
+      return { ok: true };
+    } catch (err) {
+      console.error("[markListingSold] failed:", err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Could not mark sold.",
+      };
+    }
+  });
+
 // ────────────────────────────────────────────────────────────────────────────
 // Enquiries
 // ────────────────────────────────────────────────────────────────────────────
@@ -251,4 +310,167 @@ export const markEnquiryIntroduced = createServerFn({ method: "POST" })
       where id = ${data.id}
     `;
     return { ok: true };
+  });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Yard applications
+// ────────────────────────────────────────────────────────────────────────────
+
+export type YardApplication = {
+  userId: string;
+  name: string;
+  email: string;
+  businessName: string | null;
+  city: string | null;
+  bio: string | null;
+  slug: string | null;
+  completedDeals: number;
+  memberSince: string;
+};
+
+type YardRow = {
+  id: string;
+  name: string;
+  email: string;
+  seller_business_name: string | null;
+  seller_city: string | null;
+  seller_bio: string | null;
+  seller_slug: string | null;
+  completed_deals: number;
+  createdAt: string | Date;
+};
+
+export const getPendingYardApplications = createServerFn({ method: "GET" })
+  .middleware([adminMiddleware])
+  .handler(async (): Promise<YardApplication[]> => {
+    const sql = await getSql();
+    const rows = await sql<YardRow>`
+      select
+        id, name, email, seller_business_name, seller_city, seller_bio,
+        seller_slug, completed_deals, "createdAt"
+      from "user"
+      where seller_upgrade_status = 'pending'
+      order by "createdAt" asc
+    `;
+    return rows.map((r) => ({
+      userId: r.id,
+      name: r.name,
+      email: r.email,
+      businessName: r.seller_business_name,
+      city: r.seller_city,
+      bio: r.seller_bio,
+      slug: r.seller_slug,
+      completedDeals: r.completed_deals,
+      memberSince:
+        typeof r.createdAt === "string" ? r.createdAt : r.createdAt.toISOString(),
+    }));
+  });
+
+export const approveYardApplication = createServerFn({ method: "POST" })
+  .middleware([adminMiddleware])
+  .validator((data: { userId: string; type: "dealer" | "yard" }) => {
+    if (!data?.userId || typeof data.userId !== "string") {
+      throw new Error("Missing userId.");
+    }
+    const type = data.type === "yard" ? "yard" : "dealer";
+    return { userId: data.userId, type };
+  })
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const sql = await getSql();
+      await sql`
+        update "user" set
+          seller_type = ${data.type},
+          seller_verified = true,
+          seller_verified_at = now(),
+          seller_upgrade_status = 'approved',
+          seller_upgraded_at = now()
+        where id = ${data.userId}
+          and seller_upgrade_status = 'pending'
+      `;
+      return { ok: true };
+    } catch (err) {
+      console.error("[approveYardApplication] failed:", err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Could not approve.",
+      };
+    }
+  });
+
+export const rejectYardApplication = createServerFn({ method: "POST" })
+  .middleware([adminMiddleware])
+  .validator((data: { userId: string }) => {
+    if (!data?.userId || typeof data.userId !== "string") {
+      throw new Error("Missing userId.");
+    }
+    return { userId: data.userId };
+  })
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const sql = await getSql();
+      await sql`
+        update "user" set
+          seller_upgrade_status = 'rejected',
+          seller_slug = null
+        where id = ${data.userId}
+          and seller_upgrade_status = 'pending'
+      `;
+      return { ok: true };
+    } catch (err) {
+      console.error("[rejectYardApplication] failed:", err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Could not reject.",
+      };
+    }
+  });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Graduation candidates (private sellers ready to become dealers)
+// ────────────────────────────────────────────────────────────────────────────
+
+export type GraduationCandidate = {
+  userId: string;
+  name: string;
+  email: string;
+  completedDeals: number;
+  memberSince: string;
+  monthsActive: number;
+};
+
+export const getGraduationCandidates = createServerFn({ method: "GET" })
+  .middleware([adminMiddleware])
+  .handler(async (): Promise<GraduationCandidate[]> => {
+    const sql = await getSql();
+    const rows = await sql<{
+      id: string;
+      name: string;
+      email: string;
+      completed_deals: number;
+      createdAt: string | Date;
+    }>`
+      select id, name, email, completed_deals, "createdAt"
+      from "user"
+      where seller_type = 'private'
+        and seller_upgrade_status is null
+        and completed_deals >= 8
+        and "createdAt" <= now() - interval '4 months'
+      order by completed_deals desc
+      limit 50
+    `;
+    const now = Date.now();
+    return rows.map((r) => {
+      const created =
+        typeof r.createdAt === "string" ? new Date(r.createdAt) : r.createdAt;
+      const months = Math.floor((now - created.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      return {
+        userId: r.id,
+        name: r.name,
+        email: r.email,
+        completedDeals: r.completed_deals,
+        memberSince: created.toISOString(),
+        monthsActive: months,
+      };
+    });
   });

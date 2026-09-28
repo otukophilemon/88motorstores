@@ -9,6 +9,7 @@ import {
   getPublishedListing,
   type PublicListing,
 } from "@/lib/listings/public-server";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/listings/$id")({
   component: UserListingDetail,
@@ -19,13 +20,17 @@ function UserListingDetail() {
   const [listing, setListing] = useState<PublicListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFoundState, setNotFoundState] = useState(false);
+  const [shot, setShot] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     void getPublishedListing({ data: { id } })
       .then((l) => {
         if (!l) setNotFoundState(true);
-        else setListing(l);
+        else {
+          setListing(l);
+          setShot(l.images[0] ?? null);
+        }
       })
       .catch(() => setNotFoundState(true))
       .finally(() => setLoading(false));
@@ -50,7 +55,6 @@ function UserListingDetail() {
         ? ("warn" as const)
         : ("muted" as const);
 
-  // Build spec list from whatever fields are present
   const specs: { k: string; v: string }[] = [];
   if (listing.year) specs.push({ k: "Year", v: String(listing.year) });
   if (listing.mileage) specs.push({ k: "Kilometres", v: km(listing.mileage) });
@@ -77,13 +81,49 @@ function UserListingDetail() {
       </p>
 
       <div className="mt-5 grid gap-8 lg:grid-cols-12">
-        {/* Left: image placeholder + description */}
+        {/* Left: gallery + description */}
         <div className="lg:col-span-7">
-          <div className="flex aspect-video items-center justify-center rounded-xl bg-secondary">
-            <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-              {listing.kind === "car" ? "Vehicle" : "Part"} · Photos on request
-            </span>
+          {/* Main image */}
+          <div className="overflow-hidden rounded-xl bg-secondary">
+            {shot ? (
+              <img
+                src={shot}
+                alt={listing.title}
+                className="aspect-video w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-video items-center justify-center">
+                <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  Photos on request
+                </span>
+              </div>
+            )}
           </div>
+
+          {/* Thumbnails */}
+          {listing.images.length > 1 ? (
+            <div className="mt-3 grid grid-cols-5 gap-2">
+              {listing.images.map((url) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setShot(url)}
+                  className={cn(
+                    "overflow-hidden rounded-md border-2 transition-colors",
+                    shot === url ? "border-primary" : "border-transparent",
+                  )}
+                  aria-label="View photo"
+                >
+                  <img
+                    src={url}
+                    alt=""
+                    className="aspect-square w-full object-cover"
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <section className="mt-10">
             <h2 className="font-display text-3xl font-semibold">About this listing</h2>

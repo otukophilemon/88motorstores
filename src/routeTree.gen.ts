@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as CarsRouteImport } from './routes/cars'
-import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CreateClubRouteImport } from './routes/create-club'
 import { Route as DeskRouteImport } from './routes/desk'
+import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as GarageRouteImport } from './routes/garage'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as InsightsRouteImport } from './routes/insights'
@@ -42,6 +42,7 @@ import { Route as YardsSlugRouteImport } from './routes/yards.$slug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as NationsSlugIndexRouteImport } from './routes/nations.$slug.index'
 import { Route as NationsSlugThreadIdRouteImport } from './routes/nations.$slug.$threadId'
+import { Route as NationsSlugGalleryRouteImport } from './routes/nations.$slug.gallery'
 import { Route as NationsSlugManageRouteImport } from './routes/nations.$slug.manage'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,11 +60,6 @@ const CarsRoute = CarsRouteImport.update({
   path: '/cars',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CompareRoute = CompareRouteImport.update({
-  id: '/compare',
-  path: '/compare',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
@@ -77,6 +73,11 @@ const CreateClubRoute = CreateClubRouteImport.update({
 const DeskRoute = DeskRouteImport.update({
   id: '/desk',
   path: '/desk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GarageRoute = GarageRouteImport.update({
@@ -209,6 +210,11 @@ const NationsSlugThreadIdRoute = NationsSlugThreadIdRouteImport.update({
   path: '/$threadId',
   getParentRoute: () => NationsSlugRoute,
 } as any)
+const NationsSlugGalleryRoute = NationsSlugGalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
+  getParentRoute: () => NationsSlugRoute,
+} as any)
 const NationsSlugManageRoute = NationsSlugManageRouteImport.update({
   id: '/manage',
   path: '/manage',
@@ -219,10 +225,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRouteWithChildren
   '/cars': typeof CarsRouteWithChildren
-  '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
   '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
+  '/gallery': typeof GalleryRoute
   '/garage': typeof GarageRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/insights': typeof InsightsRoute
@@ -248,15 +254,16 @@ export interface FileRoutesByFullPath {
   '/parts/': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/nations/$slug/$threadId': typeof NationsSlugThreadIdRoute
+  '/nations/$slug/gallery': typeof NationsSlugGalleryRoute
   '/nations/$slug/manage': typeof NationsSlugManageRoute
   '/nations/$slug/': typeof NationsSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
   '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
+  '/gallery': typeof GalleryRoute
   '/how-it-works': typeof HowItWorksRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
@@ -278,6 +285,7 @@ export interface FileRoutesByTo {
   '/parts': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/nations/$slug/$threadId': typeof NationsSlugThreadIdRoute
+  '/nations/$slug/gallery': typeof NationsSlugGalleryRoute
   '/nations/$slug/manage': typeof NationsSlugManageRoute
   '/nations/$slug': typeof NationsSlugIndexRoute
 }
@@ -286,10 +294,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRouteWithChildren
   '/cars': typeof CarsRouteWithChildren
-  '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
   '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
+  '/gallery': typeof GalleryRoute
   '/garage': typeof GarageRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/insights': typeof InsightsRoute
@@ -315,6 +323,7 @@ export interface FileRoutesById {
   '/parts/': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/nations/$slug/$threadId': typeof NationsSlugThreadIdRoute
+  '/nations/$slug/gallery': typeof NationsSlugGalleryRoute
   '/nations/$slug/manage': typeof NationsSlugManageRoute
   '/nations/$slug/': typeof NationsSlugIndexRoute
 }
@@ -324,10 +333,10 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/cars'
-    | '/compare'
     | '/contact'
     | '/create-club'
     | '/desk'
+    | '/gallery'
     | '/garage'
     | '/how-it-works'
     | '/insights'
@@ -353,15 +362,16 @@ export interface FileRouteTypes {
     | '/parts/'
     | '/api/auth/$'
     | '/nations/$slug/$threadId'
+    | '/nations/$slug/gallery'
     | '/nations/$slug/manage'
     | '/nations/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/compare'
     | '/contact'
     | '/create-club'
     | '/desk'
+    | '/gallery'
     | '/how-it-works'
     | '/insights'
     | '/login'
@@ -383,6 +393,7 @@ export interface FileRouteTypes {
     | '/parts'
     | '/api/auth/$'
     | '/nations/$slug/$threadId'
+    | '/nations/$slug/gallery'
     | '/nations/$slug/manage'
     | '/nations/$slug'
   id:
@@ -390,10 +401,10 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/cars'
-    | '/compare'
     | '/contact'
     | '/create-club'
     | '/desk'
+    | '/gallery'
     | '/garage'
     | '/how-it-works'
     | '/insights'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/parts/'
     | '/api/auth/$'
     | '/nations/$slug/$threadId'
+    | '/nations/$slug/gallery'
     | '/nations/$slug/manage'
     | '/nations/$slug/'
   fileRoutesById: FileRoutesById
@@ -427,10 +439,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRouteWithChildren
   CarsRoute: typeof CarsRouteWithChildren
-  CompareRoute: typeof CompareRoute
   ContactRoute: typeof ContactRoute
   CreateClubRoute: typeof CreateClubRoute
   DeskRoute: typeof DeskRoute
+  GalleryRoute: typeof GalleryRoute
   GarageRoute: typeof GarageRouteWithChildren
   HowItWorksRoute: typeof HowItWorksRoute
   InsightsRoute: typeof InsightsRoute
@@ -470,13 +482,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CarsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/compare': {
-      id: '/compare'
-      path: '/compare'
-      fullPath: '/compare'
-      preLoaderRoute: typeof CompareRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/contact': {
       id: '/contact'
       path: '/contact'
@@ -496,6 +501,13 @@ declare module '@tanstack/react-router' {
       path: '/desk'
       fullPath: '/desk'
       preLoaderRoute: typeof DeskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/garage': {
@@ -680,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NationsSlugThreadIdRouteImport
       parentRoute: typeof NationsSlugRoute
     }
+    '/nations/$slug/gallery': {
+      id: '/nations/$slug/gallery'
+      path: '/gallery'
+      fullPath: '/nations/$slug/gallery'
+      preLoaderRoute: typeof NationsSlugGalleryRouteImport
+      parentRoute: typeof NationsSlugRoute
+    }
     '/nations/$slug/manage': {
       id: '/nations/$slug/manage'
       path: '/manage'
@@ -730,12 +749,14 @@ const GarageRouteWithChildren =
 
 interface NationsSlugRouteChildren {
   NationsSlugThreadIdRoute: typeof NationsSlugThreadIdRoute
+  NationsSlugGalleryRoute: typeof NationsSlugGalleryRoute
   NationsSlugManageRoute: typeof NationsSlugManageRoute
   NationsSlugIndexRoute: typeof NationsSlugIndexRoute
 }
 
 const NationsSlugRouteChildren: NationsSlugRouteChildren = {
   NationsSlugThreadIdRoute: NationsSlugThreadIdRoute,
+  NationsSlugGalleryRoute: NationsSlugGalleryRoute,
   NationsSlugManageRoute: NationsSlugManageRoute,
   NationsSlugIndexRoute: NationsSlugIndexRoute,
 }
@@ -773,10 +794,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRouteWithChildren,
   CarsRoute: CarsRouteWithChildren,
-  CompareRoute: CompareRoute,
   ContactRoute: ContactRoute,
   CreateClubRoute: CreateClubRoute,
   DeskRoute: DeskRoute,
+  GalleryRoute: GalleryRoute,
   GarageRoute: GarageRouteWithChildren,
   HowItWorksRoute: HowItWorksRoute,
   InsightsRoute: InsightsRoute,

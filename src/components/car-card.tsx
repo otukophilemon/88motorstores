@@ -1,12 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { GitCompareArrows, Heart } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { analyseCar } from "@/lib/analyse";
 import type { Car } from "@/lib/catalog";
 import { kes, kesShort } from "@/lib/format";
-import { useGarii } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function CarCard({
@@ -16,10 +13,6 @@ export function CarCard({
   car: Car;
   featured?: boolean;
 }) {
-  const saved = useGarii((s) => s.savedCars.includes(car.id));
-  const compared = useGarii((s) => s.compareIds.includes(car.id));
-  const toggleSavedCar = useGarii((s) => s.toggleSavedCar);
-  const toggleCompare = useGarii((s) => s.toggleCompare);
   const analysis = analyseCar(car);
   const band =
     analysis.band === "below"
@@ -79,27 +72,6 @@ export function CarCard({
             <Link to="/cars/$id" params={{ id: car.id }}>
               View &amp; enquire
             </Link>
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant={saved ? "default" : "outline"}
-            aria-label={saved ? "Remove from garage" : "Save to garage"}
-            onClick={() => toggleSavedCar(car.id)}
-          >
-            <Heart className={cn("size-4", saved && "fill-current")} />
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant={compared ? "default" : "outline"}
-            aria-label="Compare"
-            onClick={() => {
-              const ok = toggleCompare(car.id);
-              if (!ok) toast.error("Compare holds three cars. Remove one first.");
-            }}
-          >
-            <GitCompareArrows className="size-4" />
           </Button>
         </div>
       </div>

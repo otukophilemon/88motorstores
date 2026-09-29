@@ -1,7 +1,8 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Calendar, MapPin, Send } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Plus, Send, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { MediaUploader, type MediaItem } from "@/components/media-uploader";
 import { ReactionBar } from "@/components/reaction-bar";
 import { Button } from "@/components/ui/button";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
@@ -25,6 +26,7 @@ type ChatMessage = {
   id: string;
   authorName: string;
   body: string;
+  media: MediaItem[];
   createdAt: string;
   kind: "thread" | "reply";
 };
@@ -39,6 +41,8 @@ function ThreadPage() {
   const [loading, setLoading] = useState(true);
   const [notFoundFlag, setNotFoundFlag] = useState(false);
   const [draft, setDraft] = useState("");
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -72,6 +76,7 @@ function ThreadPage() {
             id: t.id,
             authorName: t.authorName,
             body: t.body,
+            media: t.media ?? [],
             createdAt: t.createdAt,
             kind: "thread",
           },
@@ -79,6 +84,7 @@ function ThreadPage() {
             id: reply.id,
             authorName: reply.authorName,
             body: reply.body,
+            media: reply.media ?? [],
             createdAt: reply.createdAt,
             kind: "reply" as const,
           })),
@@ -105,6 +111,7 @@ function ThreadPage() {
               id: r.id,
               authorName: r.authorName,
               body: r.body,
+              media: r.media ?? [],
               createdAt: r.createdAt,
               kind: "reply" as const,
             })),
@@ -126,7 +133,7 @@ function ThreadPage() {
   async function send(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text && media.length === 0) return;
     if (!user) {
       toast.error("Sign in to send a message.");
       return;
@@ -138,6 +145,7 @@ function ThreadPage() {
           postId: threadId,
           authorName: user.displayName ?? user.primaryEmail ?? "Member",
           body: text,
+          media,
         },
       });
       if (!result.ok) {
@@ -150,11 +158,14 @@ function ThreadPage() {
           id: result.reply.id,
           authorName: result.reply.authorName,
           body: result.reply.body,
+          media: result.reply.media ?? [],
           createdAt: result.reply.createdAt,
           kind: "reply",
         },
       ]);
       setDraft("");
+      setMedia([]);
+      setMediaOpen(false);
       lastIdRef.current = result.reply.id;
       window.setTimeout(() => scrollToBottom(true), 50);
     } catch (err) {
@@ -253,9 +264,43 @@ function ThreadPage() {
                         {m.authorName}
                       </p>
                     ) : null}
-                    <p className="whitespace-pre-line text-sm leading-relaxed">
-                      {m.body}
-                    </p>
+                    {m.body ? (
+                      <p className="whitespace-pre-line text-sm leading-relaxed">
+                        {m.body}
+                      </p>
+                    ) : null}
+                    {m.media.length > 0 ? (
+                      <div
+                        className={`grid gap-1.5 ${
+                          m.body ? "mt-2" : ""
+                        } ${m.media.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
+                      >
+                        {m.media.map((item) => (
+                          <div
+                            key={item.url}
+                            className={`overflow-hidden rounded-lg bg-secondary ${
+                              m.media.length === 1 ? "aspect-video" : "aspect-square"
+                            }`}
+                          >
+                            {item.type === "video" ? (
+                              <video
+                                src={item.url}
+                                className="size-full object-cover"
+                                controls
+                                preload="metadata"
+                              />
+                            ) : (
+                              <img
+                                src={item.url}
+                                alt=""
+                                className="size-full object-cover"
+                                loading="lazy"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div
                     className={
@@ -289,7 +334,42 @@ function ThreadPage() {
 
       <div className="shrink-0 border-t border-border py-4">
         <SignedIn>
+          {mediaOpen ? (
+            <div className="mb-3 rounded-xl border border-border bg-card p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  Attach media
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedia([]);
+                    setMediaOpen(false);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="Close attachments"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <MediaUploader
+                value={media}
+                onChange={setMedia}
+                disabled={submitting}
+                maxItems={4}
+              />
+            </div>
+          ) : null}
+
           <form onSubmit={send} className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setMediaOpen((v) => !v)}
+              className="grid size-11 shrink-0 place-items-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+              aria-label="Add media"
+            >
+              <Plus className="size-4" />
+            </button>
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -307,7 +387,7 @@ function ThreadPage() {
             <Button
               type="submit"
               size="icon"
-              disabled={submitting || !draft.trim()}
+              disabled={submitting || (!draft.trim() && media.length === 0)}
               aria-label="Send"
             >
               <Send className="size-4" />

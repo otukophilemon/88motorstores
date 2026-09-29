@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
-import { CompareDock, SiteFooter, SiteHeader } from "@/components/site-shell";
+import { SiteFooter, SiteHeader } from "@/components/site-shell";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
@@ -69,7 +69,6 @@ function RootDocument() {
             <SiteHeader />
             <Outlet />
             <SiteFooter />
-            <CompareDock />
           </div>
           <Toaster />
         </AuthProvider>

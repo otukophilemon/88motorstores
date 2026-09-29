@@ -1,16 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { Part } from "@/lib/catalog";
 import { kes } from "@/lib/format";
-import { useGarii } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function PartCard({ part }: { part: Part }) {
-  const saved = useGarii((s) => s.savedParts.includes(part.id));
-  const toggleSavedPart = useGarii((s) => s.toggleSavedPart);
-
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl bg-card shadow-[var(--shadow-border)] transition-[box-shadow] duration-200 hover:shadow-[var(--shadow-border-hover)]">
       <Link
@@ -43,15 +37,6 @@ export function PartCard({ part }: { part: Part }) {
           <p className="flex-1 font-display text-xl font-semibold tabular-nums">
             {kes(part.price)}
           </p>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant={saved ? "default" : "outline"}
-            aria-label="Save part"
-            onClick={() => toggleSavedPart(part.id)}
-          >
-            <Heart className={cn("size-4", saved && "fill-current")} />
-          </Button>
         </div>
       </div>
     </article>

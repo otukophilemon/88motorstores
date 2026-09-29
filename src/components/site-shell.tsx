@@ -1,67 +1,32 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { GitCompareArrows, Mail, MapPin, Menu, MessageCircle, Phone, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Mail, MapPin, Menu, MessageCircle, Phone } from "lucide-react";
+import { useState } from "react";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { amIAdmin } from "@/lib/auth/am-i-admin";
-import { useGarii } from "@/lib/store";
-import { useHydrated } from "@/lib/use-hydrated";
 import { cn } from "@/lib/utils";
 
-const NAV_BASE = [
+// Main nav — just the marketplace browsing surfaces.
+const NAV = [
   { to: "/" as const, label: "Home" },
   { to: "/cars" as const, label: "Cars" },
   { to: "/parts" as const, label: "Parts" },
   { to: "/nations" as const, label: "Clubs" },
+  { to: "/garage" as const, label: "Garage" },
+  { to: "/gallery" as const, label: "Gallery" },
+];
+
+// Right side — utilities + info pages.
+const RIGHT_NAV = [
   { to: "/insights" as const, label: "Insights" },
   { to: "/how-it-works" as const, label: "Concierge" },
 ];
 
-function useIsAdmin() {
-  const hydrated = useHydrated();
-  const { user, isPending } = useCurrentUserState();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (isPending) return;
-    if (!user) {
-      setIsAdmin(false);
-      return;
-    }
-    let alive = true;
-    void amIAdmin()
-      .then((r) => {
-        if (alive) setIsAdmin(r.isAdmin);
-      })
-      .catch(() => {
-        if (alive) setIsAdmin(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [hydrated, isPending, user?.id]);
-
-  return isAdmin;
-}
-
 export function SiteHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
-  const hydrated = useHydrated();
-  const isAdmin = useIsAdmin();
-  const garageCount = useGarii((s) => s.savedCars.length + s.savedParts.length);
-  const compareCount = useGarii((s) => s.compareIds.length);
-  const garageShown = hydrated ? garageCount : 0;
-  const compareShown = hydrated ? compareCount : 0;
-
-  const nav = isAdmin
-    ? [...NAV_BASE, { to: "/desk" as const, label: "Desk" }]
-    : NAV_BASE;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
@@ -70,7 +35,7 @@ export function SiteHeader() {
           <Logo />
         </Link>
         <nav className="hidden flex-1 items-center gap-1 lg:flex">
-          {nav.map((item) => (
+          {NAV.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -85,35 +50,35 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <Link to="/garage">
-              Garage
-              {garageShown ? (
-                <span className="tabular-nums text-muted-foreground">{garageShown}</span>
-              ) : null}
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <Link to="/compare">
-              Compare
-              {compareShown ? (
-                <span className="tabular-nums text-muted-foreground">{compareShown}</span>
-              ) : null}
-            </Link>
-          </Button>
-
+        <div className="ml-auto flex items-center gap-1">
           <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
             <Link to="/contact">Contact desk</Link>
           </Button>
 
-                    <SignedIn>
+          {RIGHT_NAV.map((item) => (
+            <Button
+              key={item.to}
+              asChild
+              variant="ghost"
+              size="sm"
+              className="hidden sm:inline-flex"
+            >
+              <Link
+                to={item.to}
+                className={cn(
+                  "rounded-md",
+                  pathname.startsWith(item.to) && "text-foreground",
+                )}
+              >
+                {item.label}
+              </Link>
+            </Button>
+          ))}
+
+          <SignedIn>
             <div className="hidden sm:flex items-center gap-2">
               <NotificationBell />
               <UserButton />
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/create-club">Create club</Link>
-              </Button>
               <Button asChild size="sm">
                 <Link to="/sell">List a vehicle</Link>
               </Button>
@@ -125,7 +90,7 @@ export function SiteHeader() {
               <Button asChild variant="ghost" size="sm">
                 <Link to="/login">Sign in</Link>
               </Button>
-              <Button asChild variant="outline" size="sm">
+              <Button asChild size="sm">
                 <Link to="/sign-up">Create account</Link>
               </Button>
             </div>
@@ -146,7 +111,7 @@ export function SiteHeader() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="p-6 pt-14">
           <nav className="flex flex-col gap-1">
-            {nav.map((item) => (
+            {NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -156,13 +121,21 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            <Link to="/garage" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
-              Garage
+            {RIGHT_NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setOpen(false)}
+                className="rounded-md px-3 py-3 text-base"
+              >
+                {item.label}
+              </Link>
+            ))}
+            
+            <Link to="/contact" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
+              Contact desk
             </Link>
-            <Link to="/compare" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
-              Compare
-            </Link>
-                        <SignedIn>
+            <SignedIn>
               <Link
                 to="/create-club"
                 onClick={() => setOpen(false)}
@@ -171,9 +144,6 @@ export function SiteHeader() {
                 Create club
               </Link>
             </SignedIn>
-            <Link to="/contact" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
-              Contact desk
-            </Link>
             <div className="mt-4 border-t border-border pt-4">
               <SignedIn>
                 <div className="flex flex-col gap-3">
@@ -232,6 +202,9 @@ export function SiteFooter() {
             </li>
             <li>
               <Link to="/nations">Clubs</Link>
+            </li>
+            <li>
+              <Link to="/gallery">Gallery</Link>
             </li>
             <li>
               <Link to="/insights">Insights</Link>
@@ -305,42 +278,5 @@ export function SiteFooter() {
         </p>
       </div>
     </footer>
-  );
-}
-
-export function CompareDock() {
-  const hydrated = useHydrated();
-  const ids = useGarii((s) => s.compareIds);
-  const clear = useGarii((s) => s.clearCompare);
-  const toggle = useGarii((s) => s.toggleCompare);
-  if (!hydrated || !ids.length) return null;
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-[var(--shadow-border),var(--shadow-lift)]">
-        <GitCompareArrows className="size-4 text-muted-foreground" />
-        <p className="text-sm">
-          <span className="tabular-nums">{ids.length}</span> in compare
-        </p>
-        <div className="hidden gap-1 sm:flex">
-          {ids.map((id) => (
-            <button
-              key={id}
-              type="button"
-              className="rounded-full p-1 text-muted-foreground hover:text-foreground"
-              onClick={() => toggle(id)}
-              aria-label={`Remove ${id}`}
-            >
-              <X className="size-3.5" />
-            </button>
-          ))}
-        </div>
-        <Button asChild size="sm">
-          <Link to="/compare">Open bay</Link>
-        </Button>
-        <Button size="sm" variant="ghost" onClick={clear}>
-          Clear
-        </Button>
-      </div>
-    </div>
   );
 }

@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import {
   Calendar,
   Cog,
+  Images,
   LogOut,
   MapPin,
   MessageSquare,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { MediaUploader, type MediaItem } from "@/components/media-uploader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,7 @@ function ClubPage() {
   const [body, setBody] = useState("");
   const [eventAt, setEventAt] = useState("");
   const [eventLocation, setEventLocation] = useState("");
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   // Load club, members, threads on mount.
@@ -111,7 +114,6 @@ function ClubPage() {
         return;
       }
       toast.success(`Joined ${club.name}.`);
-      // Reload members.
       const m = await getClubMembers({ data: { clubId: club.id } });
       setMembers(m);
     } catch (err) {
@@ -143,8 +145,8 @@ function ClubPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!author.trim() || !title.trim() || !body.trim()) {
-      toast.error("Display name, thread title, and a message are required.");
+    if (!author.trim() || !title.trim() || (!body.trim() && media.length === 0)) {
+      toast.error("Display name, thread title, and a message or photo are required.");
       return;
     }
     setSubmitting(true);
@@ -157,6 +159,7 @@ function ClubPage() {
           body: body.trim(),
           eventAt: eventAt || undefined,
           eventLocation: eventLocation.trim() || undefined,
+          media,
         },
       });
       if (!result.ok) {
@@ -169,6 +172,7 @@ function ClubPage() {
       setBody("");
       setEventAt("");
       setEventLocation("");
+      setMedia([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not post.");
     } finally {
@@ -212,6 +216,15 @@ function ClubPage() {
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link
+                  to="/nations/$slug/gallery"
+                  params={{ slug: club.slug }}
+                >
+                  <Images className="size-4" />
+                  Gallery
+                </Link>
+              </Button>
               {canManage ? (
                 <Button asChild variant="outline" size="sm">
                   <Link
@@ -381,6 +394,14 @@ function ClubPage() {
                     placeholder="Ask the club…"
                     disabled={submitting}
                   />
+                  <div className="grid gap-2">
+                    <Label>Photos &amp; videos</Label>
+                    <MediaUploader
+                      value={media}
+                      onChange={setMedia}
+                      disabled={submitting}
+                    />
+                  </div>
                   <details className="rounded-lg border border-border bg-background p-3">
                     <summary className="cursor-pointer text-xs uppercase tracking-[0.16em] text-muted-foreground">
                       Schedule an event (optional)

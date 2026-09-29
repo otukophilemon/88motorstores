@@ -1,12 +1,10 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Heart } from "lucide-react";
 import { EnquireDialog } from "@/components/enquire-dialog";
 import { PartCard } from "@/components/part-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { partById, parts } from "@/lib/catalog";
 import { kes } from "@/lib/format";
-import { useGarii } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/parts/$id")({ component: PartDetail });
@@ -15,8 +13,6 @@ function PartDetail() {
   const { id } = Route.useParams();
   const part = partById(id);
   if (!part) throw notFound();
-  const saved = useGarii((s) => s.savedParts.includes(part.id));
-  const toggle = useGarii((s) => s.toggleSavedPart);
   const related = parts.filter((p) => p.category === part.category && p.id !== part.id).slice(0, 3);
 
   return (
@@ -60,14 +56,6 @@ function PartDetail() {
                 targetId={part.id}
                 subject={`${part.title} · ${kes(part.price)}`}
               />
-              <Button
-                type="button"
-                variant={saved ? "default" : "outline"}
-                onClick={() => toggle(part.id)}
-              >
-                <Heart className={cn("size-4", saved && "fill-current")} />
-                {saved ? "Saved" : "Save to garage"}
-              </Button>
             </div>
           </div>
         </div>

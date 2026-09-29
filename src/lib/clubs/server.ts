@@ -8,9 +8,17 @@ import { notifyThreadParticipants } from "@/lib/notifications/server";
  *
  * Reads are public. Writes require a signed-in user. Polling on the client
  * (every 5s) simulates real-time by refetching threads/replies.
+ *
+ * Threads and replies accept an optional `media` array of { url, type } objects.
+ * Media is uploaded separately to Vercel Blob; only the URLs land here.
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────
+
+export type MediaItem = {
+  url: string;
+  type: "image" | "video";
+};
 
 export type ClubPost = {
   id: string;
@@ -23,6 +31,7 @@ export type ClubPost = {
   replyCount: number;
   eventAt: string | null;
   eventLocation: string | null;
+  media: MediaItem[];
   createdAt: string;
 };
 
@@ -32,6 +41,7 @@ export type ClubReply = {
   userId: string;
   authorName: string;
   body: string;
+  media: MediaItem[];
   createdAt: string;
 };
 
@@ -50,6 +60,23 @@ function isoOrNull(v: string | Date | null | undefined): string | null {
   return typeof v === "string" ? v : v.toISOString();
 }
 
+function normalizeMedia(raw: unknown): MediaItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MediaItem[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const url =
+      typeof (item as { url?: unknown }).url === "string"
+        ? (item as { url: string }).url
+        : null;
+    const type = (item as { type?: unknown }).type;
+    if (!url) continue;
+    if (type !== "image" && type !== "video") continue;
+    out.push({ url, type });
+  }
+  return out;
+}
+
 // ─── getClubThreads ──────────────────────────────────────────────────────
 
 type ThreadRow = {
@@ -63,6 +90,7 @@ type ThreadRow = {
   created_at: string | Date;
   event_at: string | Date | null;
   event_location: string | null;
+  media: unknown;
   reply_count: string | number;
 };
 
@@ -78,7 +106,7 @@ export const getClubThreads = createServerFn({ method: "POST" })
     const rows = await sql<ThreadRow>`
       select
         p.id, p.club_slug, p.user_id, p.author_name, p.title, p.body,
-        p.pinned, p.created_at, p.event_at, p.event_location,
+        p.pinned, p.created_at, p.event_at, p.event_location, p.media,
         (select count(*) from replies r where r.post_id = p.id) as reply_count
       from posts p
       where p.club_slug = ${data.clubSlug}
@@ -100,6 +128,7 @@ export const getClubThreads = createServerFn({ method: "POST" })
       replyCount: Number(r.reply_count),
       eventAt: isoOrNull(r.event_at),
       eventLocation: r.event_location,
+      media: normalizeMedia(r.media),
       createdAt: iso(r.created_at),
     }));
   });
@@ -116,7 +145,7 @@ export const getThread = createServerFn({ method: "POST" })
     const rows = await sql<ThreadRow>`
       select
         p.id, p.club_slug, p.user_id, p.author_name, p.title, p.body,
-        p.pinned, p.created_at, p.event_at, p.event_location,
+        p.pinned, p.created_at, p.event_at, p.event_location, p.media,
         (select count(*) from replies r where r.post_id = p.id) as reply_count
       from posts p
       where p.id = ${data.id}
@@ -135,6 +164,7 @@ export const getThread = createServerFn({ method: "POST" })
       replyCount: Number(r.reply_count),
       eventAt: isoOrNull(r.event_at),
       eventLocation: r.event_location,
+      media: normalizeMedia(r.media),
       createdAt: iso(r.created_at),
     };
   });
@@ -148,6 +178,7 @@ export type CreatePostInput = {
   body: string;
   eventAt?: string;
   eventLocation?: string;
+  media?: MediaItem[];
 };
 
 export type CreatePostResult =
@@ -164,11 +195,14 @@ export const createClubPost = createServerFn({ method: "POST" })
     const body = String(data.body ?? "").trim();
     const eventAt = data.eventAt ? String(data.eventAt).trim() : "";
     const eventLocation = data.eventLocation ? String(data.eventLocation).trim() : "";
+    const media = normalizeMedia(data.media).slice(0, 6);
 
     if (!clubSlug) throw new Error("Missing club slug.");
     if (!authorName) throw new Error("Your display name is required.");
     if (!title) throw new Error("A thread title is required.");
-    if (!body) throw new Error("Your message is required.");
+    if (!body && media.length === 0) {
+      throw new Error("Your message or a photo is required.");
+    }
 
     let normalizedEventAt: string | undefined;
     if (eventAt) {
@@ -184,9 +218,10 @@ export const createClubPost = createServerFn({ method: "POST" })
       body,
       eventAt: normalizedEventAt,
       eventLocation: eventLocation || undefined,
+      media,
     } satisfies CreatePostInput;
   })
-    .handler(async ({ data, context }): Promise<CreatePostResult> => {
+  .handler(async ({ data, context }): Promise<CreatePostResult> => {
     try {
       const sql = await getSql();
 
@@ -207,11 +242,12 @@ export const createClubPost = createServerFn({ method: "POST" })
       await sql`
         insert into posts (
           id, club_slug, user_id, author_name, title, body, pinned,
-          event_at, event_location, created_at, updated_at
+          event_at, event_location, media, created_at, updated_at
         ) values (
           ${id}, ${data.clubSlug}, ${context.userId}, ${data.authorName},
           ${data.title}, ${data.body}, false,
           ${data.eventAt ?? null}, ${data.eventLocation ?? null},
+          ${JSON.stringify(data.media ?? [])}::jsonb,
           ${now}, ${now}
         )
       `;
@@ -228,6 +264,7 @@ export const createClubPost = createServerFn({ method: "POST" })
           replyCount: 0,
           eventAt: data.eventAt ?? null,
           eventLocation: data.eventLocation ?? null,
+          media: data.media ?? [],
           createdAt: now,
         },
       };
@@ -248,6 +285,7 @@ type ReplyRow = {
   user_id: string;
   author_name: string;
   body: string;
+  media: unknown;
   created_at: string | Date;
 };
 
@@ -261,7 +299,7 @@ export const getReplies = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<ClubReply[]> => {
     const sql = await getSql();
     const rows = await sql<ReplyRow>`
-      select id, post_id, user_id, author_name, body, created_at
+      select id, post_id, user_id, author_name, body, media, created_at
       from replies
       where post_id = ${data.postId}
       order by created_at asc
@@ -273,6 +311,7 @@ export const getReplies = createServerFn({ method: "POST" })
       userId: r.user_id,
       authorName: r.author_name,
       body: r.body,
+      media: normalizeMedia(r.media),
       createdAt: iso(r.created_at),
     }));
   });
@@ -283,6 +322,7 @@ export type CreateReplyInput = {
   postId: string;
   authorName: string;
   body: string;
+  media?: MediaItem[];
 };
 
 export type CreateReplyResult =
@@ -296,12 +336,15 @@ export const createReply = createServerFn({ method: "POST" })
     const postId = String(data.postId ?? "").trim();
     const authorName = String(data.authorName ?? "").trim();
     const body = String(data.body ?? "").trim();
+    const media = normalizeMedia(data.media).slice(0, 4);
     if (!postId) throw new Error("Missing thread id.");
     if (!authorName) throw new Error("Your display name is required.");
-    if (!body) throw new Error("Your message is required.");
-    return { postId, authorName, body } satisfies CreateReplyInput;
+    if (!body && media.length === 0) {
+      throw new Error("Your message or a photo is required.");
+    }
+    return { postId, authorName, body, media } satisfies CreateReplyInput;
   })
-    .handler(async ({ data, context }): Promise<CreateReplyResult> => {
+  .handler(async ({ data, context }): Promise<CreateReplyResult> => {
     try {
       const sql = await getSql();
 
@@ -324,12 +367,14 @@ export const createReply = createServerFn({ method: "POST" })
       const now = new Date().toISOString();
 
       await sql`
-        insert into replies (id, post_id, user_id, author_name, body, created_at)
-        values (${id}, ${data.postId}, ${context.userId}, ${data.authorName}, ${data.body}, ${now})
+        insert into replies (id, post_id, user_id, author_name, body, media, created_at)
+        values (
+          ${id}, ${data.postId}, ${context.userId}, ${data.authorName},
+          ${data.body}, ${JSON.stringify(data.media ?? [])}::jsonb, ${now}
+        )
       `;
 
       // Dispatch notifications to every other participant in the thread.
-      // Wrapped so a notification failure never blocks the reply itself.
       try {
         const threadRows = await sql<{
           title: string | null;
@@ -360,6 +405,7 @@ export const createReply = createServerFn({ method: "POST" })
           userId: context.userId,
           authorName: data.authorName,
           body: data.body,
+          media: data.media ?? [],
           createdAt: now,
         },
       };

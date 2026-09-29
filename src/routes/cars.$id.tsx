@@ -1,12 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import {
-  GitCompareArrows,
-  Heart,
-  MapPin,
-  ShieldCheck,
-} from "lucide-react";
+import { MapPin, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { CarCard } from "@/components/car-card";
 import { EnquireDialog } from "@/components/enquire-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { analyseCar } from "@/lib/analyse";
 import { carById, cars } from "@/lib/catalog";
 import { kes, km } from "@/lib/format";
-import { useGarii } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/cars/$id")({
@@ -26,10 +19,6 @@ function CarDetail() {
   const car = carById(id);
   if (!car) throw notFound();
   const analysis = analyseCar(car);
-  const saved = useGarii((s) => s.savedCars.includes(car.id));
-  const compared = useGarii((s) => s.compareIds.includes(car.id));
-  const toggleSavedCar = useGarii((s) => s.toggleSavedCar);
-  const toggleCompare = useGarii((s) => s.toggleCompare);
   const [shot, setShot] = useState(car.image);
 
   const bandLabel =
@@ -110,29 +99,6 @@ function CarDetail() {
                 targetId={car.id}
                 subject={`${car.year} ${car.title} · ${kes(car.price)}`}
               />
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={saved ? "default" : "outline"}
-                  className="flex-1"
-                  onClick={() => toggleSavedCar(car.id)}
-                >
-                  <Heart className={cn("size-4", saved && "fill-current")} />
-                  {saved ? "In garage" : "Save"}
-                </Button>
-                <Button
-                  type="button"
-                  variant={compared ? "default" : "outline"}
-                  className="flex-1"
-                  onClick={() => {
-                    const ok = toggleCompare(car.id);
-                    if (!ok) toast.error("Compare holds three cars.");
-                  }}
-                >
-                  <GitCompareArrows className="size-4" />
-                  Compare
-                </Button>
-              </div>
             </div>
             <p className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />

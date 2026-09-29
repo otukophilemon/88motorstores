@@ -14,6 +14,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as CarsRouteImport } from './routes/cars'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as CreateClubRouteImport } from './routes/create-club'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as GarageRouteImport } from './routes/garage'
 import { Route as HowItWorksRouteImport } from './routes/how-it-works'
@@ -39,6 +40,7 @@ import { Route as YardsSlugRouteImport } from './routes/yards.$slug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as NationsSlugIndexRouteImport } from './routes/nations.$slug.index'
 import { Route as NationsSlugThreadIdRouteImport } from './routes/nations.$slug.$threadId'
+import { Route as NationsSlugManageRouteImport } from './routes/nations.$slug.manage'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -63,6 +65,11 @@ const CompareRoute = CompareRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreateClubRoute = CreateClubRouteImport.update({
+  id: '/create-club',
+  path: '/create-club',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeskRoute = DeskRouteImport.update({
@@ -190,6 +197,11 @@ const NationsSlugThreadIdRoute = NationsSlugThreadIdRouteImport.update({
   path: '/$threadId',
   getParentRoute: () => NationsSlugRoute,
 } as any)
+const NationsSlugManageRoute = NationsSlugManageRouteImport.update({
+  id: '/manage',
+  path: '/manage',
+  getParentRoute: () => NationsSlugRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -197,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/cars': typeof CarsRouteWithChildren
   '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
+  '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
   '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
@@ -221,12 +234,14 @@ export interface FileRoutesByFullPath {
   '/parts/': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/nations/$slug/$threadId': typeof NationsSlugThreadIdRoute
+  '/nations/$slug/manage': typeof NationsSlugManageRoute
   '/nations/$slug/': typeof NationsSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
+  '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
   '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
@@ -248,6 +263,7 @@ export interface FileRoutesByTo {
   '/parts': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/nations/$slug/$threadId': typeof NationsSlugThreadIdRoute
+  '/nations/$slug/manage': typeof NationsSlugManageRoute
   '/nations/$slug': typeof NationsSlugIndexRoute
 }
 export interface FileRoutesById {
@@ -257,6 +273,7 @@ export interface FileRoutesById {
   '/cars': typeof CarsRouteWithChildren
   '/compare': typeof CompareRoute
   '/contact': typeof ContactRoute
+  '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
   '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
@@ -281,6 +298,7 @@ export interface FileRoutesById {
   '/parts/': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/nations/$slug/$threadId': typeof NationsSlugThreadIdRoute
+  '/nations/$slug/manage': typeof NationsSlugManageRoute
   '/nations/$slug/': typeof NationsSlugIndexRoute
 }
 export interface FileRouteTypes {
@@ -291,6 +309,7 @@ export interface FileRouteTypes {
     | '/cars'
     | '/compare'
     | '/contact'
+    | '/create-club'
     | '/desk'
     | '/garage'
     | '/how-it-works'
@@ -315,12 +334,14 @@ export interface FileRouteTypes {
     | '/parts/'
     | '/api/auth/$'
     | '/nations/$slug/$threadId'
+    | '/nations/$slug/manage'
     | '/nations/$slug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/compare'
     | '/contact'
+    | '/create-club'
     | '/desk'
     | '/garage'
     | '/how-it-works'
@@ -342,6 +363,7 @@ export interface FileRouteTypes {
     | '/parts'
     | '/api/auth/$'
     | '/nations/$slug/$threadId'
+    | '/nations/$slug/manage'
     | '/nations/$slug'
   id:
     | '__root__'
@@ -350,6 +372,7 @@ export interface FileRouteTypes {
     | '/cars'
     | '/compare'
     | '/contact'
+    | '/create-club'
     | '/desk'
     | '/garage'
     | '/how-it-works'
@@ -374,6 +397,7 @@ export interface FileRouteTypes {
     | '/parts/'
     | '/api/auth/$'
     | '/nations/$slug/$threadId'
+    | '/nations/$slug/manage'
     | '/nations/$slug/'
   fileRoutesById: FileRoutesById
 }
@@ -383,6 +407,7 @@ export interface RootRouteChildren {
   CarsRoute: typeof CarsRouteWithChildren
   CompareRoute: typeof CompareRoute
   ContactRoute: typeof ContactRoute
+  CreateClubRoute: typeof CreateClubRoute
   DeskRoute: typeof DeskRoute
   GarageRoute: typeof GarageRoute
   HowItWorksRoute: typeof HowItWorksRoute
@@ -435,6 +460,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/create-club': {
+      id: '/create-club'
+      path: '/create-club'
+      fullPath: '/create-club'
+      preLoaderRoute: typeof CreateClubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/desk': {
@@ -612,6 +644,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NationsSlugThreadIdRouteImport
       parentRoute: typeof NationsSlugRoute
     }
+    '/nations/$slug/manage': {
+      id: '/nations/$slug/manage'
+      path: '/manage'
+      fullPath: '/nations/$slug/manage'
+      preLoaderRoute: typeof NationsSlugManageRouteImport
+      parentRoute: typeof NationsSlugRoute
+    }
   }
 }
 
@@ -642,11 +681,13 @@ const CarsRouteWithChildren = CarsRoute._addFileChildren(CarsRouteChildren)
 
 interface NationsSlugRouteChildren {
   NationsSlugThreadIdRoute: typeof NationsSlugThreadIdRoute
+  NationsSlugManageRoute: typeof NationsSlugManageRoute
   NationsSlugIndexRoute: typeof NationsSlugIndexRoute
 }
 
 const NationsSlugRouteChildren: NationsSlugRouteChildren = {
   NationsSlugThreadIdRoute: NationsSlugThreadIdRoute,
+  NationsSlugManageRoute: NationsSlugManageRoute,
   NationsSlugIndexRoute: NationsSlugIndexRoute,
 }
 
@@ -685,6 +726,7 @@ const rootRouteChildren: RootRouteChildren = {
   CarsRoute: CarsRouteWithChildren,
   CompareRoute: CompareRoute,
   ContactRoute: ContactRoute,
+  CreateClubRoute: CreateClubRoute,
   DeskRoute: DeskRoute,
   GarageRoute: GarageRoute,
   HowItWorksRoute: HowItWorksRoute,

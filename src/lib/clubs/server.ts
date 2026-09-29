@@ -186,9 +186,22 @@ export const createClubPost = createServerFn({ method: "POST" })
       eventLocation: eventLocation || undefined,
     } satisfies CreatePostInput;
   })
-  .handler(async ({ data, context }): Promise<CreatePostResult> => {
+    .handler(async ({ data, context }): Promise<CreatePostResult> => {
     try {
       const sql = await getSql();
+
+      // Membership check — posters must be club members.
+      const membershipRows = await sql<{ role: string }>`
+        select m.role
+        from club_members m
+        inner join clubs c on c.id = m.club_id
+        where c.slug = ${data.clubSlug} and m.user_id = ${context.userId}
+        limit 1
+      `;
+      if (membershipRows.length === 0) {
+        return { ok: false, error: "Join this club first to post." };
+      }
+
       const id = nid("thr");
       const now = new Date().toISOString();
       await sql`
@@ -288,9 +301,25 @@ export const createReply = createServerFn({ method: "POST" })
     if (!body) throw new Error("Your message is required.");
     return { postId, authorName, body } satisfies CreateReplyInput;
   })
-  .handler(async ({ data, context }): Promise<CreateReplyResult> => {
+    .handler(async ({ data, context }): Promise<CreateReplyResult> => {
     try {
       const sql = await getSql();
+
+      // Membership check — the caller must belong to the club that owns this thread.
+      const membershipRows = await sql<{ role: string }>`
+        select m.role
+        from club_members m
+        inner join posts p on p.club_slug is not null
+        inner join clubs c on c.id = m.club_id
+        where p.id = ${data.postId}
+          and c.slug = p.club_slug
+          and m.user_id = ${context.userId}
+        limit 1
+      `;
+      if (membershipRows.length === 0) {
+        return { ok: false, error: "Join this club first to reply." };
+      }
+
       const id = nid("rep");
       const now = new Date().toISOString();
 

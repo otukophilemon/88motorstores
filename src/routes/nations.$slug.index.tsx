@@ -1,35 +1,54 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Calendar, MapPin, MessageSquare, Pin } from "lucide-react";
+import {
+  Calendar,
+  Cog,
+  LogOut,
+  MapPin,
+  MessageSquare,
+  Pin,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { CarCard } from "@/components/car-card";
-import { EnquireDialog } from "@/components/enquire-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { cars, nationBySlug } from "@/lib/catalog";
 import {
   createClubPost,
   getClubThreads,
   type ClubPost,
 } from "@/lib/clubs/server";
+import {
+  getClub,
+  getClubMembers,
+  joinClub,
+  leaveClub,
+  type Club,
+  type ClubMember,
+  type ClubRole,
+} from "@/lib/clubs/management";
 
 export const Route = createFileRoute("/nations/$slug/")({
-  component: NationPage,
+  component: ClubPage,
 });
 
-function NationPage() {
+function ClubPage() {
   const { slug } = Route.useParams();
-  const nation = nationBySlug(slug);
-  if (!nation) throw notFound();
-  const related = cars.filter((c) => c.make === nation.make).slice(0, 3);
-
   const user = useCurrentUser();
+
+  const [club, setClub] = useState<Club | null>(null);
+  const [members, setMembers] = useState<ClubMember[]>([]);
   const [posts, setPosts] = useState<ClubPost[]>([]);
-  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [notFoundState, setNotFoundState] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  // Post form state
   const [author, setAuthor] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -37,13 +56,90 @@ function NationPage() {
   const [eventLocation, setEventLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Load club, members, threads on mount.
   useEffect(() => {
-    setLoadingPosts(true);
-    void getClubThreads({ data: { clubSlug: slug } })
-      .then(setPosts)
-      .catch(() => setPosts([]))
-      .finally(() => setLoadingPosts(false));
+    setLoading(true);
+    void getClub({ data: { slug } })
+      .then(async (c) => {
+        if (!c) {
+          setNotFoundState(true);
+          return;
+        }
+        setClub(c);
+        const [m, t] = await Promise.all([
+          getClubMembers({ data: { clubId: c.id } }).catch(() => []),
+          getClubThreads({ data: { clubSlug: slug } }).catch(() => []),
+        ]);
+        setMembers(m);
+        setPosts(t);
+      })
+      .catch(() => setNotFoundState(true))
+      .finally(() => setLoading(false));
   }, [slug]);
+
+  // Prefill author name once user loads.
+  useEffect(() => {
+    if (user?.displayName && !author) setAuthor(user.displayName);
+  }, [user?.displayName, author]);
+
+  if (loading) {
+    return (
+      <main className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6">
+        <p className="text-sm text-muted-foreground">Loading club…</p>
+      </main>
+    );
+  }
+
+  if (notFoundState || !club) {
+    throw notFound();
+  }
+
+  const myMembership = user
+    ? members.find((m) => m.userId === user.id)
+    : undefined;
+  const myRole: ClubRole | null = myMembership?.role ?? null;
+  const isMember = myRole !== null;
+  const canManage = myRole === "owner" || myRole === "admin";
+
+  async function handleJoin() {
+    if (!club) return;
+    setActionBusy(true);
+    try {
+      const r = await joinClub({ data: { clubId: club.id } });
+      if (!r.ok) {
+        toast.error(r.error ?? "Could not join.");
+        return;
+      }
+      toast.success(`Joined ${club.name}.`);
+      // Reload members.
+      const m = await getClubMembers({ data: { clubId: club.id } });
+      setMembers(m);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not join.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleLeave() {
+    if (!club) return;
+    if (!confirm(`Leave ${club.name}?`)) return;
+    setActionBusy(true);
+    try {
+      const r = await leaveClub({ data: { clubId: club.id } });
+      if (!r.ok) {
+        toast.error(r.error ?? "Could not leave.");
+        return;
+      }
+      toast.success(`Left ${club.name}.`);
+      const m = await getClubMembers({ data: { clubId: club.id } });
+      setMembers(m);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not leave.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -87,22 +183,84 @@ function NationPage() {
 
   return (
     <main>
+      {/* Hero */}
       <section className="relative min-h-72 overflow-hidden">
-        <img src={nation.cover} alt="" className="img-cover absolute inset-0 size-full" />
+        {club.cover ? (
+          <img
+            src={club.cover}
+            alt=""
+            className="img-cover absolute inset-0 size-full"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-secondary" />
+        )}
         <div className="absolute inset-0 bg-linear-to-t from-background via-background/55 to-background/15" />
         <div className="relative mx-auto flex min-h-72 max-w-7xl flex-col justify-end px-4 pb-10 sm:px-6">
           <p className="text-xs uppercase tracking-[0.18em] text-primary">
             <Link to="/nations">Clubs</Link> ·{" "}
-            {nation.members.toLocaleString("en-KE")} members
+            {members.length} {members.length === 1 ? "member" : "members"}
           </p>
-          <h1 className="font-display text-5xl font-semibold">{nation.name}</h1>
-          <p className="mt-2 max-w-xl text-foreground/85">{nation.tagline}</p>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="font-display text-5xl font-semibold">
+                {club.name}
+              </h1>
+              {club.tagline ? (
+                <p className="mt-2 max-w-xl text-foreground/85">
+                  {club.tagline}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {canManage ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link
+                    to="/nations/$slug/manage"
+                    params={{ slug: club.slug }}
+                  >
+                    <Cog className="size-4" />
+                    Manage club
+                  </Link>
+                </Button>
+              ) : null}
+              <SignedIn>
+                {isMember ? (
+                  myRole === "owner" ? null : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={actionBusy}
+                      onClick={handleLeave}
+                    >
+                      <LogOut className="size-4" />
+                      Leave
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={actionBusy}
+                    onClick={handleJoin}
+                  >
+                    <UserPlus className="size-4" />
+                    Join club
+                  </Button>
+                )}
+              </SignedIn>
+              <SignedOut>
+                <Button asChild size="sm">
+                  <Link to="/sign-up">Sign up to join</Link>
+                </Button>
+              </SignedOut>
+            </div>
+          </div>
         </div>
       </section>
 
+      {/* Main grid */}
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-12">
         <div className="lg:col-span-8">
-          {/* Coming up — events scheduled in the future */}
+          {/* Coming up */}
           {upcoming.length ? (
             <section className="mb-10">
               <div className="flex items-end justify-between gap-4">
@@ -126,7 +284,7 @@ function NationPage() {
             </section>
           ) : null}
 
-          {/* All threads */}
+          {/* Threads */}
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-primary">
@@ -136,16 +294,14 @@ function NationPage() {
                 Club threads
               </h2>
             </div>
-            {!loadingPosts ? (
+            {posts.length ? (
               <p className="text-sm text-muted-foreground">
                 {posts.length} {posts.length === 1 ? "thread" : "threads"}
               </p>
             ) : null}
           </div>
 
-          {loadingPosts ? (
-            <p className="mt-4 text-sm text-muted-foreground">Loading threads…</p>
-          ) : posts.length === 0 ? (
+          {posts.length === 0 ? (
             <p className="mt-4 text-sm text-muted-foreground">
               No threads yet. Be the first to start a conversation.
             </p>
@@ -157,14 +313,16 @@ function NationPage() {
             </div>
           )}
 
-          {/* Post form */}
+          {/* Post form or gating */}
           <div className="mt-8">
             <SignedOut>
               <div className="rounded-xl bg-card p-6 shadow-[var(--shadow-border)]">
-                <h2 className="font-display text-2xl font-semibold">Sign in to post</h2>
+                <h2 className="font-display text-2xl font-semibold">
+                  Sign in to post
+                </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Joining the conversation requires an account. It’s free and
-                  takes a minute.
+                  Reading the club is open to everyone. Posting requires an
+                  account and club membership.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button asChild>
@@ -178,104 +336,159 @@ function NationPage() {
             </SignedOut>
 
             <SignedIn>
-              <form
-                onSubmit={submit}
-                className="grid gap-3 rounded-xl bg-card p-5 shadow-[var(--shadow-border)]"
-              >
-                <h2 className="font-display text-2xl font-semibold">Start a thread</h2>
-                <Input
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                  placeholder={user?.displayName ?? "Your display name"}
-                  disabled={submitting}
-                />
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Thread title"
-                  disabled={submitting}
-                />
-                <Textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="Ask the club…"
-                  disabled={submitting}
-                />
-                <details className="rounded-lg border border-border bg-background p-3">
-                  <summary className="cursor-pointer text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    Schedule an event (optional)
-                  </summary>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <Label htmlFor="eventAt">When</Label>
-                      <Input
-                        id="eventAt"
-                        type="datetime-local"
-                        value={eventAt}
-                        onChange={(e) => setEventAt(e.target.value)}
-                        disabled={submitting}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="eventLoc">Where</Label>
-                      <Input
-                        id="eventLoc"
-                        value={eventLocation}
-                        onChange={(e) => setEventLocation(e.target.value)}
-                        placeholder="e.g. Two Rivers Mall"
-                        disabled={submitting}
-                      />
-                    </div>
+              {!isMember ? (
+                <div className="rounded-xl bg-card p-6 shadow-[var(--shadow-border)]">
+                  <h2 className="font-display text-2xl font-semibold">
+                    Join to post
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    You need to be a member of {club.name} to start a thread.
+                    Joining is open — no approval needed.
+                  </p>
+                  <div className="mt-5">
+                    <Button
+                      disabled={actionBusy}
+                      onClick={handleJoin}
+                    >
+                      <UserPlus className="size-4" />
+                      Join {club.name}
+                    </Button>
                   </div>
-                </details>
-                <Button
-                  type="submit"
-                  className="justify-self-start"
-                  disabled={submitting}
+                </div>
+              ) : (
+                <form
+                  onSubmit={submit}
+                  className="grid gap-3 rounded-xl bg-card p-5 shadow-[var(--shadow-border)]"
                 >
-                  {submitting ? "Posting…" : "Post thread"}
-                </Button>
-              </form>
+                  <h2 className="font-display text-2xl font-semibold">
+                    Start a thread
+                  </h2>
+                  <Input
+                    value={author}
+                    onChange={(e) => setAuthor(e.target.value)}
+                    placeholder={user?.displayName ?? "Your display name"}
+                    disabled={submitting}
+                  />
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Thread title"
+                    disabled={submitting}
+                  />
+                  <Textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder="Ask the club…"
+                    disabled={submitting}
+                  />
+                  <details className="rounded-lg border border-border bg-background p-3">
+                    <summary className="cursor-pointer text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                      Schedule an event (optional)
+                    </summary>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label htmlFor="eventAt">When</Label>
+                        <Input
+                          id="eventAt"
+                          type="datetime-local"
+                          value={eventAt}
+                          onChange={(e) => setEventAt(e.target.value)}
+                          disabled={submitting}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="eventLoc">Where</Label>
+                        <Input
+                          id="eventLoc"
+                          value={eventLocation}
+                          onChange={(e) => setEventLocation(e.target.value)}
+                          placeholder="e.g. Two Rivers Mall"
+                          disabled={submitting}
+                        />
+                      </div>
+                    </div>
+                  </details>
+                  <Button
+                    type="submit"
+                    className="justify-self-start"
+                    disabled={submitting}
+                  >
+                    {submitting ? "Posting…" : "Post thread"}
+                  </Button>
+                </form>
+              )}
             </SignedIn>
           </div>
         </div>
 
+        {/* Sidebar */}
         <aside className="grid gap-5 lg:col-span-4 lg:self-start">
           <div className="rounded-xl bg-card p-5 shadow-[var(--shadow-border)]">
             <h2 className="font-display text-xl font-semibold">About</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{nation.about}</p>
-            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-              {nation.rules.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-            <div className="mt-5">
-              <EnquireDialog
-                kind="nation"
-                targetId={nation.slug}
-                subject={`Join / sponsor ${nation.name}`}
-                triggerLabel="Talk to the desk"
-              />
-            </div>
+            {club.about ? (
+              <p className="mt-2 text-sm text-muted-foreground">{club.about}</p>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No description yet.
+              </p>
+            )}
+            {club.rules.length ? (
+              <>
+                <p className="mt-5 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  Rules
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
+                  {club.rules.map((r) => (
+                    <li key={r}>· {r}</li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl bg-card p-5 shadow-[var(--shadow-border)]">
+            <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
+              <Users className="size-5" />
+              Members
+            </h2>
+            {members.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No members yet.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2 text-sm">
+                {members.slice(0, 20).map((m) => (
+                  <li
+                    key={m.userId}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="truncate">{m.name}</span>
+                    {m.role === "owner" ? (
+                      <Badge variant="default" className="text-[10px]">
+                        Owner
+                      </Badge>
+                    ) : m.role === "admin" ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        Admin
+                      </Badge>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {members.length > 20 ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                +{members.length - 20} more
+              </p>
+            ) : null}
           </div>
         </aside>
       </div>
-
-      {related.length ? (
-        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-          <h2 className="font-display text-2xl font-semibold">
-            Stock this club drives
-          </h2>
-          <div className="mt-6 grid gap-5 sm:grid-cols-3">
-            {related.map((c) => (
-              <CarCard key={c.id} car={c} />
-            ))}
-          </div>
-        </section>
-      ) : null}
     </main>
   );
 }
+
+// ─── Thread card ────────────────────────────────────────────────────────
 
 function EventCard({
   post,

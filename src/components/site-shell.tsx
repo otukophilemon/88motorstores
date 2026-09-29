@@ -107,10 +107,13 @@ export function SiteHeader() {
             <Link to="/contact">Contact desk</Link>
           </Button>
 
-          <SignedIn>
+                    <SignedIn>
             <div className="hidden sm:flex items-center gap-2">
               <NotificationBell />
               <UserButton />
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/create-club">Create club</Link>
+              </Button>
               <Button asChild size="sm">
                 <Link to="/sell">List a vehicle</Link>
               </Button>
@@ -159,6 +162,15 @@ export function SiteHeader() {
             <Link to="/compare" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
               Compare
             </Link>
+                        <SignedIn>
+              <Link
+                to="/create-club"
+                onClick={() => setOpen(false)}
+                className="rounded-md px-3 py-3"
+              >
+                Create club
+              </Link>
+            </SignedIn>
             <Link to="/contact" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
               Contact desk
             </Link>

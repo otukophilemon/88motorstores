@@ -1,19 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth/verify.server";
 
 /**
  * Garage social feed server functions.
  *
- * Posts and comments require auth. All reads are public.
- * Media is stored as JSON: [{ url, type: 'image' | 'video' }].
+ * Reads (listPosts, getPost, listComments) are PUBLIC — anyone can browse.
+ * Writes (createPost, updatePost, deletePost, createComment, etc.) require auth.
  *
- * Soft-delete: posts and comments have deleted_at. Rows with deleted_at set
- * are excluded from all reads. They are hard-deleted only if the parent post
- * is hard-deleted (cascade).
+ * myReaction is only populated when the caller is signed in; otherwise null.
  */
-
-// ─── Types ──────────────────────────────────────────────────────────────
 
 export type MediaItem = {
   url: string;
@@ -31,7 +28,6 @@ export type GaragePost = {
   updatedAt: string;
   commentCount: number;
   reactionCount: number;
-  /** My reaction emoji, or null. Only populated when signed in. */
   myReaction: string | null;
 };
 
@@ -183,7 +179,6 @@ export const createPost = createServerFn({ method: "POST" })
       const id = nid("gp");
       const now = new Date().toISOString();
 
-      // Fetch the user's display name for denormalization.
       const userRows = await sql<{ name: string }>`
         select name from "user" where id = ${context.userId} limit 1
       `;
@@ -209,10 +204,9 @@ export const createPost = createServerFn({ method: "POST" })
     }
   });
 
-// ─── listPosts ──────────────────────────────────────────────────────────
+// ─── listPosts (PUBLIC) ─────────────────────────────────────────────────
 
 export const listPosts = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
   .validator((data: { limit?: number; before?: string }) => {
     const limit = Number(data?.limit ?? 20);
     return {
@@ -220,8 +214,11 @@ export const listPosts = createServerFn({ method: "POST" })
       before: typeof data?.before === "string" ? data.before : undefined,
     };
   })
-    .handler(async ({ data, context }): Promise<GaragePost[]> => {
+  .handler(async ({ data }): Promise<GaragePost[]> => {
+    const sessionUser = await getSessionUser();
+    const myId = sessionUser?.id ?? null;
     const sql = await getSql();
+
     const rows = await sql<PostRow>`
       select
         p.id, p.user_id, p.author_name, p.title, p.body, p.media,
@@ -232,7 +229,7 @@ export const listPosts = createServerFn({ method: "POST" })
           where r.target_type = 'garage_post' and r.target_id = p.id) as reaction_count,
         (select emoji from reactions r
           where r.target_type = 'garage_post' and r.target_id = p.id
-            and r.user_id = ${context.userId}
+            and r.user_id = ${myId}
           limit 1) as my_reaction
       from garage_posts p
       where p.deleted_at is null
@@ -243,16 +240,18 @@ export const listPosts = createServerFn({ method: "POST" })
     return rows.map(toPost);
   });
 
-// ─── getPost ────────────────────────────────────────────────────────────
+// ─── getPost (PUBLIC) ───────────────────────────────────────────────────
 
 export const getPost = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
   .validator((data: { id: string }) => {
     if (!data?.id || typeof data.id !== "string") throw new Error("Missing id.");
     return { id: data.id };
   })
-  .handler(async ({ data, context }): Promise<GaragePost | null> => {
+  .handler(async ({ data }): Promise<GaragePost | null> => {
+    const sessionUser = await getSessionUser();
+    const myId = sessionUser?.id ?? null;
     const sql = await getSql();
+
     const rows = await sql<PostRow>`
       select
         p.id, p.user_id, p.author_name, p.title, p.body, p.media,
@@ -263,7 +262,7 @@ export const getPost = createServerFn({ method: "POST" })
           where r.target_type = 'garage_post' and r.target_id = p.id) as reaction_count,
         (select emoji from reactions r
           where r.target_type = 'garage_post' and r.target_id = p.id
-            and r.user_id = ${context.userId}
+            and r.user_id = ${myId}
           limit 1) as my_reaction
       from garage_posts p
       where p.id = ${data.id} and p.deleted_at is null
@@ -290,7 +289,6 @@ export const updatePost = createServerFn({ method: "POST" })
     try {
       const sql = await getSql();
 
-      // Fetch to verify ownership.
       const rows = await sql<{ user_id: string }>`
         select user_id from garage_posts where id = ${data.id} and deleted_at is null limit 1
       `;
@@ -404,18 +402,20 @@ export const createComment = createServerFn({ method: "POST" })
     }
   });
 
-// ─── listComments ───────────────────────────────────────────────────────
+// ─── listComments (PUBLIC) ──────────────────────────────────────────────
 
 export const listComments = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
   .validator((data: { postId: string }) => {
     if (!data?.postId || typeof data.postId !== "string") {
       throw new Error("Missing postId.");
     }
     return { postId: data.postId };
   })
-  .handler(async ({ data, context }): Promise<GarageComment[]> => {
+  .handler(async ({ data }): Promise<GarageComment[]> => {
+    const sessionUser = await getSessionUser();
+    const myId = sessionUser?.id ?? null;
     const sql = await getSql();
+
     const rows = await sql<CommentRow>`
       select
         c.id, c.post_id, c.user_id, c.author_name, c.body, c.media,
@@ -424,7 +424,7 @@ export const listComments = createServerFn({ method: "POST" })
           where r.target_type = 'garage_comment' and r.target_id = c.id) as reaction_count,
         (select emoji from reactions r
           where r.target_type = 'garage_comment' and r.target_id = c.id
-            and r.user_id = ${context.userId}
+            and r.user_id = ${myId}
           limit 1) as my_reaction
       from garage_comments c
       where c.post_id = ${data.postId} and c.deleted_at is null

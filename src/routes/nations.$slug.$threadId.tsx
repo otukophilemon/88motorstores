@@ -2,10 +2,11 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, Calendar, MapPin, Send } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { ReactionBar } from "@/components/reaction-bar";
 import { Button } from "@/components/ui/button";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { nationBySlug } from "@/lib/catalog";
+import { getClub, type Club } from "@/lib/clubs/management";
 import {
   createReply,
   getReplies,
@@ -30,9 +31,9 @@ type ChatMessage = {
 
 function ThreadPage() {
   const { slug, threadId } = Route.useParams();
-  const nation = nationBySlug(slug);
   const user = useCurrentUser();
 
+  const [club, setClub] = useState<Club | null>(null);
   const [thread, setThread] = useState<ClubPost | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,14 +56,16 @@ function ThreadPage() {
   useEffect(() => {
     setLoading(true);
     void Promise.all([
+      getClub({ data: { slug } }).catch(() => null),
       getThread({ data: { id: threadId } }),
       getReplies({ data: { postId: threadId } }),
     ])
-      .then(([t, r]) => {
+      .then(([c, t, r]) => {
         if (!t) {
           setNotFoundFlag(true);
           return;
         }
+        setClub(c);
         setThread(t);
         const feed: ChatMessage[] = [
           {
@@ -86,7 +89,7 @@ function ThreadPage() {
       })
       .catch(() => setNotFoundFlag(true))
       .finally(() => setLoading(false));
-  }, [threadId]);
+  }, [slug, threadId]);
 
   useEffect(() => {
     if (!thread) return;
@@ -185,7 +188,7 @@ function ThreadPage() {
           className="inline-flex items-center gap-1.5 text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" />
-          {nation?.name ?? "Club"}
+          {club?.name ?? "Club"}
         </Link>
         <h1 className="mt-2 font-display text-2xl font-semibold leading-tight">
           {thread.title}
@@ -212,9 +215,18 @@ function ThreadPage() {
           </div>
         ) : null}
 
-        <p className="mt-2 text-xs text-muted-foreground">
-          {messages.length} {messages.length === 1 ? "message" : "messages"}
-        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {messages.length} {messages.length === 1 ? "message" : "messages"}
+          </p>
+          <ReactionBar
+            targetType="thread"
+            targetId={thread.id}
+            initialCount={0}
+            initialMine={null}
+            compact
+          />
+        </div>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-6">
@@ -245,18 +257,29 @@ function ThreadPage() {
                       {m.body}
                     </p>
                   </div>
-                  <p
+                  <div
                     className={
                       mine
-                        ? "mt-1 text-right text-[11px] text-muted-foreground"
-                        : "mt-1 text-[11px] text-muted-foreground"
+                        ? "mt-1 flex items-center justify-end gap-3"
+                        : "mt-1 flex items-center gap-3"
                     }
                   >
-                    {new Date(m.createdAt).toLocaleTimeString("en-KE", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
+                    <span className="text-[11px] text-muted-foreground">
+                      {new Date(m.createdAt).toLocaleTimeString("en-KE", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    {m.kind === "reply" ? (
+                      <ReactionBar
+                        targetType="reply"
+                        targetId={m.id}
+                        initialCount={0}
+                        initialMine={null}
+                        compact
+                      />
+                    ) : null}
+                  </div>
                 </div>
               </div>
             );

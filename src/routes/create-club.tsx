@@ -1,9 +1,8 @@
-
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { ImageUploader } from "@/components/image-uploader";
+import { MediaUploader, type MediaItem } from "@/components/media-uploader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +22,7 @@ function NewClubPage() {
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [about, setAbout] = useState("");
-  const [coverImages, setCoverImages] = useState<string[]>([]);
+  const [coverMedia, setCoverMedia] = useState<MediaItem[]>([]);
   const [rules, setRules] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +42,9 @@ function NewClubPage() {
       toast.error("Name, tagline, and description are required.");
       return;
     }
-    if (coverImages.length === 0) {
+    // Cover must be an image — no videos.
+    const cover = coverMedia.find((m) => m.type === "image")?.url;
+    if (!cover) {
       toast.error("A cover image is required.");
       return;
     }
@@ -60,7 +61,7 @@ function NewClubPage() {
           name: name.trim(),
           tagline: tagline.trim(),
           about: about.trim(),
-          cover: coverImages[0],
+          cover,
           rules: rulesArray,
         },
       });
@@ -110,13 +111,15 @@ function NewClubPage() {
             A single wide image. This appears on the clubs list and at the top
             of your club page.
           </p>
-          <ImageUploader
-            value={coverImages}
-            onChange={(urls) => {
-              // Keep only the first image — the cover.
-              setCoverImages(urls.slice(0, 1));
+          <MediaUploader
+            value={coverMedia}
+            onChange={(items) => {
+              // Keep only the first image.
+              const firstImage = items.find((i) => i.type === "image");
+              setCoverMedia(firstImage ? [firstImage] : []);
             }}
             disabled={submitting}
+            maxItems={1}
           />
         </div>
 
@@ -171,7 +174,9 @@ function NewClubPage() {
             id="club-rules"
             value={rules}
             onChange={(e) => setRules(e.target.value)}
-            placeholder={"One rule per line, up to 10.\ne.g.\nNo selling in the main feed\nMeet points posted 48 hours out"}
+            placeholder={
+              "One rule per line, up to 10.\ne.g.\nNo selling in the main feed\nMeet points posted 48 hours out"
+            }
             rows={4}
             disabled={submitting}
           />

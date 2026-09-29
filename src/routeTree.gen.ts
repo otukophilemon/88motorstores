@@ -31,6 +31,8 @@ import { Route as AccountUpgradeRouteImport } from './routes/account.upgrade'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as CarsIndexRouteImport } from './routes/cars.index'
 import { Route as CarsIdRouteImport } from './routes/cars.$id'
+import { Route as GarageIndexRouteImport } from './routes/garage.index'
+import { Route as GarageIdRouteImport } from './routes/garage.$id'
 import { Route as ListingsIdRouteImport } from './routes/listings.$id'
 import { Route as NationsIndexRouteImport } from './routes/nations.index'
 import { Route as NationsSlugRouteImport } from './routes/nations.$slug'
@@ -152,6 +154,16 @@ const CarsIdRoute = CarsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => CarsRoute,
 } as any)
+const GarageIndexRoute = GarageIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GarageRoute,
+} as any)
+const GarageIdRoute = GarageIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => GarageRoute,
+} as any)
 const ListingsIdRoute = ListingsIdRouteImport.update({
   id: '/listings/$id',
   path: '/listings/$id',
@@ -211,7 +223,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
-  '/garage': typeof GarageRoute
+  '/garage': typeof GarageRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
@@ -224,12 +236,14 @@ export interface FileRoutesByFullPath {
   '/account/upgrade': typeof AccountUpgradeRoute
   '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
+  '/garage/$id': typeof GarageIdRoute
   '/listings/$id': typeof ListingsIdRoute
   '/nations/$slug': typeof NationsSlugRouteWithChildren
   '/parts/$id': typeof PartsIdRoute
   '/yards/$slug': typeof YardsSlugRoute
   '/account/': typeof AccountIndexRoute
   '/cars/': typeof CarsIndexRoute
+  '/garage/': typeof GarageIndexRoute
   '/nations/': typeof NationsIndexRoute
   '/parts/': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -243,7 +257,6 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
-  '/garage': typeof GarageRoute
   '/how-it-works': typeof HowItWorksRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
@@ -254,11 +267,13 @@ export interface FileRoutesByTo {
   '/account/upgrade': typeof AccountUpgradeRoute
   '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
+  '/garage/$id': typeof GarageIdRoute
   '/listings/$id': typeof ListingsIdRoute
   '/parts/$id': typeof PartsIdRoute
   '/yards/$slug': typeof YardsSlugRoute
   '/account': typeof AccountIndexRoute
   '/cars': typeof CarsIndexRoute
+  '/garage': typeof GarageIndexRoute
   '/nations': typeof NationsIndexRoute
   '/parts': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -275,7 +290,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/create-club': typeof CreateClubRoute
   '/desk': typeof DeskRoute
-  '/garage': typeof GarageRoute
+  '/garage': typeof GarageRouteWithChildren
   '/how-it-works': typeof HowItWorksRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
@@ -288,12 +303,14 @@ export interface FileRoutesById {
   '/account/upgrade': typeof AccountUpgradeRoute
   '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
+  '/garage/$id': typeof GarageIdRoute
   '/listings/$id': typeof ListingsIdRoute
   '/nations/$slug': typeof NationsSlugRouteWithChildren
   '/parts/$id': typeof PartsIdRoute
   '/yards/$slug': typeof YardsSlugRoute
   '/account/': typeof AccountIndexRoute
   '/cars/': typeof CarsIndexRoute
+  '/garage/': typeof GarageIndexRoute
   '/nations/': typeof NationsIndexRoute
   '/parts/': typeof PartsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -324,12 +341,14 @@ export interface FileRouteTypes {
     | '/account/upgrade'
     | '/api/upload'
     | '/cars/$id'
+    | '/garage/$id'
     | '/listings/$id'
     | '/nations/$slug'
     | '/parts/$id'
     | '/yards/$slug'
     | '/account/'
     | '/cars/'
+    | '/garage/'
     | '/nations/'
     | '/parts/'
     | '/api/auth/$'
@@ -343,7 +362,6 @@ export interface FileRouteTypes {
     | '/contact'
     | '/create-club'
     | '/desk'
-    | '/garage'
     | '/how-it-works'
     | '/insights'
     | '/login'
@@ -354,11 +372,13 @@ export interface FileRouteTypes {
     | '/account/upgrade'
     | '/api/upload'
     | '/cars/$id'
+    | '/garage/$id'
     | '/listings/$id'
     | '/parts/$id'
     | '/yards/$slug'
     | '/account'
     | '/cars'
+    | '/garage'
     | '/nations'
     | '/parts'
     | '/api/auth/$'
@@ -387,12 +407,14 @@ export interface FileRouteTypes {
     | '/account/upgrade'
     | '/api/upload'
     | '/cars/$id'
+    | '/garage/$id'
     | '/listings/$id'
     | '/nations/$slug'
     | '/parts/$id'
     | '/yards/$slug'
     | '/account/'
     | '/cars/'
+    | '/garage/'
     | '/nations/'
     | '/parts/'
     | '/api/auth/$'
@@ -409,7 +431,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   CreateClubRoute: typeof CreateClubRoute
   DeskRoute: typeof DeskRoute
-  GarageRoute: typeof GarageRoute
+  GarageRoute: typeof GarageRouteWithChildren
   HowItWorksRoute: typeof HowItWorksRoute
   InsightsRoute: typeof InsightsRoute
   LoginRoute: typeof LoginRoute
@@ -581,6 +603,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CarsIdRouteImport
       parentRoute: typeof CarsRoute
     }
+    '/garage/': {
+      id: '/garage/'
+      path: '/'
+      fullPath: '/garage/'
+      preLoaderRoute: typeof GarageIndexRouteImport
+      parentRoute: typeof GarageRoute
+    }
+    '/garage/$id': {
+      id: '/garage/$id'
+      path: '/$id'
+      fullPath: '/garage/$id'
+      preLoaderRoute: typeof GarageIdRouteImport
+      parentRoute: typeof GarageRoute
+    }
     '/listings/$id': {
       id: '/listings/$id'
       path: '/listings/$id'
@@ -679,6 +715,19 @@ const CarsRouteChildren: CarsRouteChildren = {
 
 const CarsRouteWithChildren = CarsRoute._addFileChildren(CarsRouteChildren)
 
+interface GarageRouteChildren {
+  GarageIdRoute: typeof GarageIdRoute
+  GarageIndexRoute: typeof GarageIndexRoute
+}
+
+const GarageRouteChildren: GarageRouteChildren = {
+  GarageIdRoute: GarageIdRoute,
+  GarageIndexRoute: GarageIndexRoute,
+}
+
+const GarageRouteWithChildren =
+  GarageRoute._addFileChildren(GarageRouteChildren)
+
 interface NationsSlugRouteChildren {
   NationsSlugThreadIdRoute: typeof NationsSlugThreadIdRoute
   NationsSlugManageRoute: typeof NationsSlugManageRoute
@@ -728,7 +777,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   CreateClubRoute: CreateClubRoute,
   DeskRoute: DeskRoute,
-  GarageRoute: GarageRoute,
+  GarageRoute: GarageRouteWithChildren,
   HowItWorksRoute: HowItWorksRoute,
   InsightsRoute: InsightsRoute,
   LoginRoute: LoginRoute,

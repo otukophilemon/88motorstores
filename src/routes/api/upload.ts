@@ -35,14 +35,17 @@ export const Route = createFileRoute("/api/upload")({
 
               // clientPayload may carry the listing kind; for now we accept any.
               // The pathname is prefixed with the user id so we know who owns it.
-              return {
+                            return {
                 allowedContentTypes: [
                   "image/jpeg",
                   "image/png",
                   "image/webp",
                   "image/gif",
+                  "video/mp4",
+                  "video/quicktime", // .mov
+                  "video/webm",
                 ],
-                maximumSizeInBytes: 8 * 1024 * 1024, // 8 MB per file
+                maximumSizeInBytes: 25 * 1024 * 1024, // 25 MB per file
                 addRandomSuffix: true,
                 tokenPayload: JSON.stringify({
                   userId: user.id,

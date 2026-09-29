@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ImageUploader } from "@/components/image-uploader";
+import { MediaUploader, type MediaItem } from "@/components/media-uploader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { createListing } from "@/lib/listings/server";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
-import { BODIES, MAKES, type Body, type Fuel, type Transmission } from "@/lib/catalog";
+import {
+  BODIES,
+  MAKES,
+  type Body,
+  type Fuel,
+  type Transmission,
+} from "@/lib/catalog";
 
 export const Route = createFileRoute("/sell")({ component: SellPage });
 
@@ -40,7 +46,7 @@ function SellPage() {
   const [sellerName, setSellerName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
@@ -51,10 +57,15 @@ function SellPage() {
       toast.error("Title, price, location, your name and WhatsApp are required.");
       return;
     }
+    // Listings only accept images — filter out any videos.
+    const images = media
+      .filter((m) => m.type === "image")
+      .map((m) => m.url);
     if (images.length === 0) {
       toast.error("At least one photo is required.");
       return;
     }
+
     setSubmitting(true);
     try {
       const result = await createListing({
@@ -71,7 +82,10 @@ function SellPage() {
           fuel: kind === "car" ? fuel : undefined,
           transmission: kind === "car" ? transmission : undefined,
           body: kind === "car" ? body : undefined,
-          mileage: kind === "car" ? Number(mileage.replace(/[^\d]/g, "")) || undefined : undefined,
+          mileage:
+            kind === "car"
+              ? Number(mileage.replace(/[^\d]/g, "")) || undefined
+              : undefined,
           sellerName: sellerName.trim(),
           sellerPhone: phone.trim(),
           sellerEmail: email.trim() || undefined,
@@ -117,7 +131,7 @@ function SellPage() {
               setPrice("");
               setDescription("");
               setLocation("");
-              setImages([]);
+              setMedia([]);
             }}
           >
             List another
@@ -226,18 +240,18 @@ function SellPage() {
               </Button>
             </div>
 
-            {/* Photos — first, prominent */}
             <div className="grid gap-2">
               <Label>
                 Photos <span className="text-destructive">*</span>
               </Label>
               <p className="text-xs text-muted-foreground">
-                Up to 10. First photo becomes the cover. JPEG, PNG, WebP or GIF, max 8 MB each.
+                Up to 10. First photo becomes the cover.
               </p>
-              <ImageUploader
-                value={images}
-                onChange={setImages}
+              <MediaUploader
+                value={media}
+                onChange={setMedia}
                 disabled={submitting}
+                maxItems={10}
               />
             </div>
 
@@ -246,7 +260,11 @@ function SellPage() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={kind === "car" ? "2018 Toyota Harrier Premium" : "Prado 150 front discs"}
+                placeholder={
+                  kind === "car"
+                    ? "2018 Toyota Harrier Premium"
+                    : "Prado 150 front discs"
+                }
               />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -265,14 +283,23 @@ function SellPage() {
                 </Select>
               </Field>
               <Field label="Model" htmlFor="model">
-                <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} />
+                <Input
+                  id="model"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                />
               </Field>
             </div>
             {kind === "car" ? (
               <>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <Field label="Year" htmlFor="year">
-                    <Input id="year" value={year} onChange={(e) => setYear(e.target.value)} inputMode="numeric" />
+                    <Input
+                      id="year"
+                      value={year}
+                      onChange={(e) => setYear(e.target.value)}
+                      inputMode="numeric"
+                    />
                   </Field>
                   <Field label="Fuel">
                     <Select value={fuel} onValueChange={(v) => setFuel(v as Fuel)}>

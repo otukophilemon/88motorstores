@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { PartCard } from "@/components/part-card";
 import { UserListingCard } from "@/components/user-listing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,11 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import {
-  CITIES,
-  PART_CATEGORIES,
-  parts,
-} from "@/lib/catalog";
+import { CITIES, PART_CATEGORIES } from "@/lib/catalog";
 import {
   getPrivateParts,
   getYardParts,
@@ -87,29 +82,7 @@ function PartsPage() {
     [yardParts, search],
   );
 
-  const filteredDemo = useMemo(() => {
-    let list = [...parts];
-    const q = search.q?.toLowerCase().trim();
-    if (q) {
-      list = list.filter((p) =>
-        `${p.title} ${p.brand} ${p.category} ${p.city} ${p.location} ${p.fitment.join(" ")}`
-          .toLowerCase()
-          .includes(q),
-      );
-    }
-    if (search.category) list = list.filter((p) => p.category === search.category);
-    if (search.city) list = list.filter((p) => p.city === search.city);
-    const sort = search.sort ?? "newest";
-    list.sort((a, b) => {
-      if (sort === "price-asc") return a.price - b.price;
-      if (sort === "price-desc") return b.price - a.price;
-      return 0;
-    });
-    return list;
-  }, [search]);
-
-  const totalCount =
-    filteredPrivateParts.length + filteredYardParts.length + filteredDemo.length;
+  const totalCount = filteredPrivateParts.length + filteredYardParts.length;
 
   function patch(next: Partial<PartsSearch>) {
     void navigate({
@@ -125,9 +98,7 @@ function PartsPage() {
 
   const filters = <Filters search={search} onPatch={patch} />;
   const noResults =
-    filteredPrivateParts.length === 0 &&
-    filteredYardParts.length === 0 &&
-    filteredDemo.length === 0;
+    filteredPrivateParts.length === 0 && filteredYardParts.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -203,41 +174,13 @@ function PartsPage() {
             </section>
           ) : null}
 
-          {/* Demo parts (featured) */}
-          <section>
-            <SectionHeader
-              kicker="Featured"
-              title="Starter inventory"
-              count={filteredDemo.length}
-              unit="part"
-            />
-            <div className="mt-6">
-              {filteredDemo.length === 0 ? (
-                <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
-                  <p className="font-display text-2xl">Nothing in that aisle.</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Loosen the filters or{" "}
-                    <Link to="/parts" className="underline">
-                      reset
-                    </Link>
-                    .
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredDemo.map((p) => (
-                    <PartCard key={p.id} part={p} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
           {noResults ? (
-            <div className="mt-8 rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
+            <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
               <p className="font-display text-2xl">Nothing in that aisle.</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Loosen the filters or{" "}
+                {privateParts.length + yardParts.length === 0
+                  ? "No parts have been published yet. Check back soon — or "
+                  : "Loosen the filters or "}
                 <Link to="/parts" className="underline">
                   reset
                 </Link>

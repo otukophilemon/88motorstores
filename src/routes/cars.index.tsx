@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { CarCard } from "@/components/car-card";
 import { UserListingCard } from "@/components/user-listing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,6 @@ import {
   BODIES,
   CITIES,
   MAKES,
-  cars,
   type Body,
 } from "@/lib/catalog";
 import {
@@ -96,33 +94,7 @@ function CarsPage() {
     [yardCars, search],
   );
 
-  const filteredDemo = useMemo(() => {
-    let list = [...cars];
-    const q = search.q?.toLowerCase().trim();
-    if (q) {
-      list = list.filter((c) =>
-        `${c.title} ${c.make} ${c.model} ${c.city} ${c.location} ${c.trim}`
-          .toLowerCase()
-          .includes(q),
-      );
-    }
-    if (search.make) list = list.filter((c) => c.make === search.make);
-    if (search.body) list = list.filter((c) => c.body === search.body);
-    if (search.city) list = list.filter((c) => c.city === search.city);
-    if (search.fuel) list = list.filter((c) => c.fuel === search.fuel);
-    const sort = search.sort ?? "newest";
-    list.sort((a, b) => {
-      if (sort === "price-asc") return a.price - b.price;
-      if (sort === "price-desc") return b.price - a.price;
-      if (sort === "km") return a.mileage - b.mileage;
-      if (sort === "demand") return b.demand - a.demand;
-      return a.daysListed - b.daysListed;
-    });
-    return list;
-  }, [search]);
-
-  const totalCount =
-    filteredPrivateCars.length + filteredYardCars.length + filteredDemo.length;
+  const totalCount = filteredPrivateCars.length + filteredYardCars.length;
 
   function patch(next: Partial<CarsSearch>) {
     void navigate({
@@ -138,9 +110,7 @@ function CarsPage() {
 
   const filters = <Filters search={search} onPatch={patch} />;
   const noResults =
-    filteredPrivateCars.length === 0 &&
-    filteredYardCars.length === 0 &&
-    filteredDemo.length === 0;
+    filteredPrivateCars.length === 0 && filteredYardCars.length === 0;
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -218,41 +188,13 @@ function CarsPage() {
             </section>
           ) : null}
 
-          {/* Demo cars (featured) */}
-          <section>
-            <SectionHeader
-              kicker="Featured"
-              title="Starter inventory"
-              count={filteredDemo.length}
-              unit="car"
-            />
-            <div className="mt-6">
-              {filteredDemo.length === 0 ? (
-                <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
-                  <p className="font-display text-2xl">Nothing in that lane.</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Loosen the filters or{" "}
-                    <Link to="/cars" className="underline">
-                      reset
-                    </Link>
-                    .
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredDemo.map((car) => (
-                    <CarCard key={car.id} car={car} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
           {noResults ? (
-            <div className="mt-8 rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
+            <div className="rounded-xl bg-card p-10 text-center shadow-[var(--shadow-border)]">
               <p className="font-display text-2xl">Nothing in that lane.</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Loosen the filters or{" "}
+                {privateCars.length + yardCars.length === 0
+                  ? "No cars have been published yet. Check back soon — or "
+                  : "Loosen the filters or "}
                 <Link to="/cars" className="underline">
                   reset
                 </Link>

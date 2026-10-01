@@ -10,7 +10,15 @@ import { getSql } from "@/lib/db";
  * removes the reaction; picking a different emoji replaces it.
  */
 
-export const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡"] as const;
+export const REACTION_EMOJIS = [
+  "👍",
+  "❤️",
+  "😂",
+  "😮",
+  "😢",
+  "😡",
+  "🙏",
+] as const;
 export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
 
 export const TARGET_TYPES = [

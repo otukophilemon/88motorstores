@@ -1,21 +1,28 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth/verify.server";
 
 /**
  * Garage social feed server functions.
  *
- * Reads (listPosts, getPost, listComments) are PUBLIC — anyone can browse.
- * Writes (createPost, updatePost, deletePost, createComment, etc.) require auth.
+ * Posts and comments require auth. All reads are public.
+ * Media is stored as JSON: [{ url, type: 'image' | 'video' }].
  *
- * myReaction is only populated when the caller is signed in; otherwise null.
+ * Post types: 'showcase' (default), 'question', 'tip'.
+ * Questions support marking one comment as the accepted answer.
+ *
+ * Soft-delete: posts and comments have deleted_at. Rows with deleted_at set
+ * are excluded from all reads.
  */
+
+// ─── Types ──────────────────────────────────────────────────────────────
 
 export type MediaItem = {
   url: string;
   type: "image" | "video";
 };
+
+export type PostType = "showcase" | "question" | "tip";
 
 export type GaragePost = {
   id: string;
@@ -24,11 +31,13 @@ export type GaragePost = {
   title: string | null;
   body: string | null;
   media: MediaItem[];
+  postType: PostType;
   createdAt: string;
   updatedAt: string;
   commentCount: number;
   reactionCount: number;
   myReaction: string | null;
+  hasAcceptedAnswer: boolean;
 };
 
 export type GarageComment = {
@@ -38,6 +47,7 @@ export type GarageComment = {
   authorName: string;
   body: string;
   media: MediaItem[];
+  isAccepted: boolean;
   createdAt: string;
   updatedAt: string;
   reactionCount: number;
@@ -48,6 +58,7 @@ export type CreatePostInput = {
   title?: string;
   body?: string;
   media: MediaItem[];
+  postType?: PostType;
 };
 
 export type CreatePostResult =
@@ -79,15 +90,21 @@ function normalizeMedia(raw: unknown): MediaItem[] {
   const out: MediaItem[] = [];
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
-    const url = typeof (item as { url?: unknown }).url === "string"
-      ? (item as { url: string }).url
-      : null;
+    const url =
+      typeof (item as { url?: unknown }).url === "string"
+        ? (item as { url: string }).url
+        : null;
     const type = (item as { type?: unknown }).type;
     if (!url) continue;
     if (type !== "image" && type !== "video") continue;
     out.push({ url, type });
   }
   return out;
+}
+
+function normalizePostType(raw: unknown): PostType {
+  if (raw === "question" || raw === "tip") return raw;
+  return "showcase";
 }
 
 // ─── Row types ──────────────────────────────────────────────────────────
@@ -99,11 +116,13 @@ type PostRow = {
   title: string | null;
   body: string | null;
   media: unknown;
+  post_type: string;
   created_at: string | Date;
   updated_at: string | Date;
   comment_count: string | number;
   reaction_count: string | number;
   my_reaction: string | null;
+  has_accepted_answer: boolean;
 };
 
 function toPost(r: PostRow): GaragePost {
@@ -114,11 +133,13 @@ function toPost(r: PostRow): GaragePost {
     title: r.title,
     body: r.body,
     media: normalizeMedia(r.media),
+    postType: normalizePostType(r.post_type),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
     commentCount: Number(r.comment_count ?? 0),
     reactionCount: Number(r.reaction_count ?? 0),
     myReaction: r.my_reaction,
+    hasAcceptedAnswer: Boolean(r.has_accepted_answer),
   };
 }
 
@@ -129,6 +150,7 @@ type CommentRow = {
   author_name: string;
   body: string;
   media: unknown;
+  is_accepted: boolean;
   created_at: string | Date;
   updated_at: string | Date;
   reaction_count: string | number;
@@ -143,6 +165,7 @@ function toComment(r: CommentRow): GarageComment {
     authorName: r.author_name,
     body: r.body,
     media: normalizeMedia(r.media),
+    isAccepted: Boolean(r.is_accepted),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
     reactionCount: Number(r.reaction_count ?? 0),
@@ -159,6 +182,7 @@ export const createPost = createServerFn({ method: "POST" })
     const title = data.title ? String(data.title).trim() : "";
     const body = data.body ? String(data.body).trim() : "";
     const media = normalizeMedia(data.media);
+    const postType = normalizePostType(data.postType);
 
     if (!title && !body && media.length === 0) {
       throw new Error("Post must have a title, a message, or media.");
@@ -171,6 +195,7 @@ export const createPost = createServerFn({ method: "POST" })
       title: title || undefined,
       body: body || undefined,
       media,
+      postType,
     } satisfies CreatePostInput;
   })
   .handler(async ({ data, context }): Promise<CreatePostResult> => {
@@ -186,11 +211,13 @@ export const createPost = createServerFn({ method: "POST" })
 
       await sql`
         insert into garage_posts (
-          id, user_id, author_name, title, body, media, created_at, updated_at
+          id, user_id, author_name, title, body, media, post_type,
+          created_at, updated_at
         ) values (
           ${id}, ${context.userId}, ${authorName},
           ${data.title ?? null}, ${data.body ?? null},
           ${JSON.stringify(data.media)}::jsonb,
+          ${data.postType ?? "showcase"},
           ${now}, ${now}
         )
       `;
@@ -204,70 +231,102 @@ export const createPost = createServerFn({ method: "POST" })
     }
   });
 
-// ─── listPosts (PUBLIC) ─────────────────────────────────────────────────
+// ─── listPosts ──────────────────────────────────────────────────────────
 
 export const listPosts = createServerFn({ method: "POST" })
-  .validator((data: { limit?: number; before?: string }) => {
-    const limit = Number(data?.limit ?? 20);
-    return {
-      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 50) : 20,
-      before: typeof data?.before === "string" ? data.before : undefined,
-    };
-  })
-  .handler(async ({ data }): Promise<GaragePost[]> => {
-    const sessionUser = await getSessionUser();
-    const myId = sessionUser?.id ?? null;
+  .middleware([authMiddleware])
+  .validator(
+    (data: { limit?: number; before?: string; postType?: PostType | "all" }) => {
+      const limit = Number(data?.limit ?? 20);
+      return {
+        limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 50) : 20,
+        before: typeof data?.before === "string" ? data.before : undefined,
+        postType:
+          data?.postType === "question" ||
+          data?.postType === "tip" ||
+          data?.postType === "showcase"
+            ? data.postType
+            : ("all" as const),
+      };
+    },
+  )
+  .handler(async ({ data, context }): Promise<GaragePost[]> => {
     const sql = await getSql();
 
-    const rows = await sql<PostRow>`
+    // Build the WHERE clause with explicit placeholders. Avoids empty
+    // template fragments (which confuse the driver) and keeps all values
+    // parameterized.
+    const where: string[] = ["p.deleted_at is null"];
+    const params: unknown[] = [context.userId]; // $1 — used in my_reaction subquery
+    let paramIdx = 2;
+
+    if (data.postType !== "all") {
+      where.push(`p.post_type = $${paramIdx++}`);
+      params.push(data.postType);
+    }
+    if (data.before) {
+      where.push(`p.created_at < $${paramIdx++}`);
+      params.push(data.before);
+    }
+    params.push(data.limit); // last param — limit
+
+    const query = `
       select
         p.id, p.user_id, p.author_name, p.title, p.body, p.media,
-        p.created_at, p.updated_at,
+        p.post_type, p.created_at, p.updated_at,
         (select count(*) from garage_comments c
           where c.post_id = p.id and c.deleted_at is null) as comment_count,
         (select count(*) from reactions r
           where r.target_type = 'garage_post' and r.target_id = p.id) as reaction_count,
         (select emoji from reactions r
           where r.target_type = 'garage_post' and r.target_id = p.id
-            and r.user_id = ${myId}
-          limit 1) as my_reaction
+            and r.user_id = $1
+          limit 1) as my_reaction,
+        exists (
+          select 1 from garage_comments c
+          where c.post_id = p.id and c.is_accepted = true and c.deleted_at is null
+        ) as has_accepted_answer
       from garage_posts p
-      where p.deleted_at is null
-        and (${data.before ?? null}::timestamptz is null or p.created_at < ${data.before ?? null}::timestamptz)
+      where ${where.join(" and ")}
       order by p.created_at desc
-      limit ${data.limit}
+      limit $${paramIdx}
     `;
+
+    const rows = await sql.query<PostRow>(query, params);
     return rows.map(toPost);
   });
 
-// ─── getPost (PUBLIC) ───────────────────────────────────────────────────
+// ─── getPost ────────────────────────────────────────────────────────────
 
 export const getPost = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: { id: string }) => {
     if (!data?.id || typeof data.id !== "string") throw new Error("Missing id.");
     return { id: data.id };
   })
-  .handler(async ({ data }): Promise<GaragePost | null> => {
-    const sessionUser = await getSessionUser();
-    const myId = sessionUser?.id ?? null;
+  .handler(async ({ data, context }): Promise<GaragePost | null> => {
     const sql = await getSql();
-
-    const rows = await sql<PostRow>`
+    const query = `
       select
         p.id, p.user_id, p.author_name, p.title, p.body, p.media,
-        p.created_at, p.updated_at,
+        p.post_type, p.created_at, p.updated_at,
         (select count(*) from garage_comments c
           where c.post_id = p.id and c.deleted_at is null) as comment_count,
         (select count(*) from reactions r
           where r.target_type = 'garage_post' and r.target_id = p.id) as reaction_count,
         (select emoji from reactions r
           where r.target_type = 'garage_post' and r.target_id = p.id
-            and r.user_id = ${myId}
-          limit 1) as my_reaction
+            and r.user_id = $1
+          limit 1) as my_reaction,
+        exists (
+          select 1 from garage_comments c
+          where c.post_id = p.id and c.is_accepted = true and c.deleted_at is null
+        ) as has_accepted_answer
       from garage_posts p
-      where p.id = ${data.id} and p.deleted_at is null
+      where p.id = $2 and p.deleted_at is null
       limit 1
     `;
+    const rows = await sql.query<PostRow>(query, [context.userId, data.id]);
     const r = rows[0];
     return r ? toPost(r) : null;
   });
@@ -276,19 +335,20 @@ export const getPost = createServerFn({ method: "POST" })
 
 export const updatePost = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((data: { id: string; title?: string; body?: string; media?: MediaItem[] }) => {
-    if (!data?.id || typeof data.id !== "string") throw new Error("Missing id.");
-    return {
-      id: data.id,
-      title: data.title ? String(data.title).trim() : undefined,
-      body: data.body ? String(data.body).trim() : undefined,
-      media: Array.isArray(data.media) ? normalizeMedia(data.media) : undefined,
-    };
-  })
+  .validator(
+    (data: { id: string; title?: string; body?: string; media?: MediaItem[] }) => {
+      if (!data?.id || typeof data.id !== "string") throw new Error("Missing id.");
+      return {
+        id: data.id,
+        title: data.title ? String(data.title).trim() : undefined,
+        body: data.body ? String(data.body).trim() : undefined,
+        media: Array.isArray(data.media) ? normalizeMedia(data.media) : undefined,
+      };
+    },
+  )
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
     try {
       const sql = await getSql();
-
       const rows = await sql<{ user_id: string }>`
         select user_id from garage_posts where id = ${data.id} and deleted_at is null limit 1
       `;
@@ -327,7 +387,6 @@ export const deletePost = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
     try {
       const sql = await getSql();
-
       const rows = await sql<{ user_id: string; role: string }>`
         select gp.user_id, u.role
         from garage_posts gp
@@ -363,7 +422,8 @@ export const createComment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((data: CreateCommentInput) => {
     if (!data || typeof data !== "object") throw new Error("Invalid payload.");
-    if (!data.postId || typeof data.postId !== "string") throw new Error("Missing postId.");
+    if (!data.postId || typeof data.postId !== "string")
+      throw new Error("Missing postId.");
     const body = String(data.body ?? "").trim();
     const media = normalizeMedia(data.media);
     if (!body && media.length === 0) {
@@ -402,35 +462,34 @@ export const createComment = createServerFn({ method: "POST" })
     }
   });
 
-// ─── listComments (PUBLIC) ──────────────────────────────────────────────
+// ─── listComments ───────────────────────────────────────────────────────
 
 export const listComments = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((data: { postId: string }) => {
     if (!data?.postId || typeof data.postId !== "string") {
       throw new Error("Missing postId.");
     }
     return { postId: data.postId };
   })
-  .handler(async ({ data }): Promise<GarageComment[]> => {
-    const sessionUser = await getSessionUser();
-    const myId = sessionUser?.id ?? null;
+  .handler(async ({ data, context }): Promise<GarageComment[]> => {
     const sql = await getSql();
-
-    const rows = await sql<CommentRow>`
+    const query = `
       select
         c.id, c.post_id, c.user_id, c.author_name, c.body, c.media,
-        c.created_at, c.updated_at,
+        c.is_accepted, c.created_at, c.updated_at,
         (select count(*) from reactions r
           where r.target_type = 'garage_comment' and r.target_id = c.id) as reaction_count,
         (select emoji from reactions r
           where r.target_type = 'garage_comment' and r.target_id = c.id
-            and r.user_id = ${myId}
+            and r.user_id = $1
           limit 1) as my_reaction
       from garage_comments c
-      where c.post_id = ${data.postId} and c.deleted_at is null
-      order by c.created_at asc
+      where c.post_id = $2 and c.deleted_at is null
+      order by c.is_accepted desc, c.created_at asc
       limit 200
     `;
+    const rows = await sql.query<CommentRow>(query, [context.userId, data.postId]);
     return rows.map(toComment);
   });
 
@@ -448,7 +507,6 @@ export const updateComment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
     try {
       const sql = await getSql();
-
       const rows = await sql<{ user_id: string }>`
         select user_id from garage_comments
         where id = ${data.id} and deleted_at is null limit 1
@@ -485,7 +543,6 @@ export const deleteComment = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
     try {
       const sql = await getSql();
-
       const rows = await sql<{ user_id: string; role: string }>`
         select gc.user_id, u.role
         from garage_comments gc
@@ -511,6 +568,64 @@ export const deleteComment = createServerFn({ method: "POST" })
       return {
         ok: false,
         error: err instanceof Error ? err.message : "Could not delete.",
+      };
+    }
+  });
+
+// ─── acceptAnswer ───────────────────────────────────────────────────────
+
+export const acceptAnswer = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((data: { commentId: string; accepted: boolean }) => {
+    if (!data?.commentId || typeof data.commentId !== "string") {
+      throw new Error("Missing commentId.");
+    }
+    return {
+      commentId: data.commentId,
+      accepted: Boolean(data.accepted),
+    };
+  })
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const sql = await getSql();
+
+      const rows = await sql<{ post_id: string; post_user_id: string }>`
+        select c.post_id, p.user_id as post_user_id
+        from garage_comments c
+        inner join garage_posts p on p.id = c.post_id
+        where c.id = ${data.commentId} and c.deleted_at is null and p.deleted_at is null
+        limit 1
+      `;
+      if (!rows[0]) return { ok: false, error: "Comment not found." };
+      if (rows[0].post_user_id !== context.userId) {
+        return {
+          ok: false,
+          error: "Only the question author can accept an answer.",
+        };
+      }
+
+      if (data.accepted) {
+        await sql`
+          update garage_comments set is_accepted = false
+          where post_id = ${rows[0].post_id} and is_accepted = true and id != ${data.commentId}
+        `;
+        await sql`
+          update garage_comments set is_accepted = true
+          where id = ${data.commentId}
+        `;
+      } else {
+        await sql`
+          update garage_comments set is_accepted = false
+          where id = ${data.commentId}
+        `;
+      }
+
+      return { ok: true };
+    } catch (err) {
+      console.error("[acceptAnswer] failed:", err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Could not update answer.",
       };
     }
   });

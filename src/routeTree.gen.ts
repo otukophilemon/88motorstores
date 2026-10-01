@@ -33,6 +33,7 @@ import { Route as CarsIndexRouteImport } from './routes/cars.index'
 import { Route as CarsIdRouteImport } from './routes/cars.$id'
 import { Route as GarageIndexRouteImport } from './routes/garage.index'
 import { Route as GarageIdRouteImport } from './routes/garage.$id'
+import { Route as GarageChatRouteImport } from './routes/garage.chat'
 import { Route as ListingsIdRouteImport } from './routes/listings.$id'
 import { Route as NationsIndexRouteImport } from './routes/nations.index'
 import { Route as NationsSlugRouteImport } from './routes/nations.$slug'
@@ -165,6 +166,11 @@ const GarageIdRoute = GarageIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => GarageRoute,
 } as any)
+const GarageChatRoute = GarageChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => GarageRoute,
+} as any)
 const ListingsIdRoute = ListingsIdRouteImport.update({
   id: '/listings/$id',
   path: '/listings/$id',
@@ -243,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
   '/garage/$id': typeof GarageIdRoute
+  '/garage/chat': typeof GarageChatRoute
   '/listings/$id': typeof ListingsIdRoute
   '/nations/$slug': typeof NationsSlugRouteWithChildren
   '/parts/$id': typeof PartsIdRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
   '/garage/$id': typeof GarageIdRoute
+  '/garage/chat': typeof GarageChatRoute
   '/listings/$id': typeof ListingsIdRoute
   '/parts/$id': typeof PartsIdRoute
   '/yards/$slug': typeof YardsSlugRoute
@@ -312,6 +320,7 @@ export interface FileRoutesById {
   '/api/upload': typeof ApiUploadRoute
   '/cars/$id': typeof CarsIdRoute
   '/garage/$id': typeof GarageIdRoute
+  '/garage/chat': typeof GarageChatRoute
   '/listings/$id': typeof ListingsIdRoute
   '/nations/$slug': typeof NationsSlugRouteWithChildren
   '/parts/$id': typeof PartsIdRoute
@@ -351,6 +360,7 @@ export interface FileRouteTypes {
     | '/api/upload'
     | '/cars/$id'
     | '/garage/$id'
+    | '/garage/chat'
     | '/listings/$id'
     | '/nations/$slug'
     | '/parts/$id'
@@ -383,6 +393,7 @@ export interface FileRouteTypes {
     | '/api/upload'
     | '/cars/$id'
     | '/garage/$id'
+    | '/garage/chat'
     | '/listings/$id'
     | '/parts/$id'
     | '/yards/$slug'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/api/upload'
     | '/cars/$id'
     | '/garage/$id'
+    | '/garage/chat'
     | '/listings/$id'
     | '/nations/$slug'
     | '/parts/$id'
@@ -629,6 +641,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GarageIdRouteImport
       parentRoute: typeof GarageRoute
     }
+    '/garage/chat': {
+      id: '/garage/chat'
+      path: '/chat'
+      fullPath: '/garage/chat'
+      preLoaderRoute: typeof GarageChatRouteImport
+      parentRoute: typeof GarageRoute
+    }
     '/listings/$id': {
       id: '/listings/$id'
       path: '/listings/$id'
@@ -736,11 +755,13 @@ const CarsRouteWithChildren = CarsRoute._addFileChildren(CarsRouteChildren)
 
 interface GarageRouteChildren {
   GarageIdRoute: typeof GarageIdRoute
+  GarageChatRoute: typeof GarageChatRoute
   GarageIndexRoute: typeof GarageIndexRoute
 }
 
 const GarageRouteChildren: GarageRouteChildren = {
   GarageIdRoute: GarageIdRoute,
+  GarageChatRoute: GarageChatRoute,
   GarageIndexRoute: GarageIndexRoute,
 }
 

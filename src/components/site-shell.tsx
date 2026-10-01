@@ -6,9 +6,10 @@ import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
+import { useIsAdmin } from "@/lib/auth/use-my-role";
 import { cn } from "@/lib/utils";
 
-// Main nav — just the marketplace browsing surfaces.
+// Main nav — the marketplace browsing surfaces.
 const NAV = [
   { to: "/" as const, label: "Home" },
   { to: "/cars" as const, label: "Cars" },
@@ -18,14 +19,15 @@ const NAV = [
   { to: "/gallery" as const, label: "Gallery" },
 ];
 
-// Right side — utilities + info pages.
-const RIGHT_NAV = [
+// Right side — always-visible info pages.
+const INFO_NAV = [
   { to: "/insights" as const, label: "Insights" },
   { to: "/how-it-works" as const, label: "Concierge" },
 ];
 
 export function SiteHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin = useIsAdmin();
   const [open, setOpen] = useState(false);
 
   return (
@@ -51,11 +53,26 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <Link to="/contact">Contact desk</Link>
-          </Button>
+          {/* Admins see Desk; everyone else sees Contact desk. */}
+          {isAdmin ? (
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link
+                to="/desk"
+                className={cn(
+                  "rounded-md",
+                  pathname.startsWith("/desk") && "text-foreground",
+                )}
+              >
+                Desk
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link to="/contact">Contact desk</Link>
+            </Button>
+          )}
 
-          {RIGHT_NAV.map((item) => (
+          {INFO_NAV.map((item) => (
             <Button
               key={item.to}
               asChild
@@ -121,7 +138,7 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            {RIGHT_NAV.map((item) => (
+            {INFO_NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -131,10 +148,23 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            
-            <Link to="/contact" onClick={() => setOpen(false)} className="rounded-md px-3 py-3">
-              Contact desk
-            </Link>
+            {isAdmin ? (
+              <Link
+                to="/desk"
+                onClick={() => setOpen(false)}
+                className="rounded-md px-3 py-3 text-base"
+              >
+                Desk
+              </Link>
+            ) : (
+              <Link
+                to="/contact"
+                onClick={() => setOpen(false)}
+                className="rounded-md px-3 py-3 text-base"
+              >
+                Contact desk
+              </Link>
+            )}
             <SignedIn>
               <Link
                 to="/create-club"
@@ -184,7 +214,7 @@ export function SiteFooter() {
         <div className="lg:col-span-2">
           <Logo />
           <p className="mt-4 max-w-md text-sm text-muted-foreground">
-            Kenya’s automotive marketplace — cars, spares, and the clubs that
+            Kenya's automotive marketplace — cars, spares, and the clubs that
             keep them alive. Introductions run through the 88Motor Stores desk
             so sellers stay private and buyers talk to a person.
           </p>
@@ -194,21 +224,11 @@ export function SiteFooter() {
             Market
           </p>
           <ul className="mt-3 space-y-2 text-sm">
-            <li>
-              <Link to="/cars">Cars</Link>
-            </li>
-            <li>
-              <Link to="/parts">Parts</Link>
-            </li>
-            <li>
-              <Link to="/nations">Clubs</Link>
-            </li>
-            <li>
-              <Link to="/gallery">Gallery</Link>
-            </li>
-            <li>
-              <Link to="/insights">Insights</Link>
-            </li>
+            <li><Link to="/cars">Cars</Link></li>
+            <li><Link to="/parts">Parts</Link></li>
+            <li><Link to="/nations">Clubs</Link></li>
+            <li><Link to="/gallery">Gallery</Link></li>
+            <li><Link to="/insights">Insights</Link></li>
           </ul>
         </div>
         <div>
@@ -216,18 +236,10 @@ export function SiteFooter() {
             Desk
           </p>
           <ul className="mt-3 space-y-2 text-sm">
-            <li>
-              <Link to="/how-it-works">How concierge works</Link>
-            </li>
-            <li>
-              <Link to="/sell">List a vehicle</Link>
-            </li>
-            <li>
-              <Link to="/contact">Contact the desk</Link>
-            </li>
-            <li>
-              <Link to="/garage">Your garage</Link>
-            </li>
+            <li><Link to="/how-it-works">How concierge works</Link></li>
+            <li><Link to="/sell">List a vehicle</Link></li>
+            <li><Link to="/contact">Contact the desk</Link></li>
+            <li><Link to="/garage">Your garage</Link></li>
           </ul>
         </div>
         <div>
@@ -236,30 +248,19 @@ export function SiteFooter() {
           </p>
           <ul className="mt-3 space-y-2 text-sm">
             <li>
-              <a
-                href="tel:+254769679667"
-                className="flex items-center gap-2 transition-colors hover:text-foreground"
-              >
+              <a href="tel:+254769679667" className="flex items-center gap-2 transition-colors hover:text-foreground">
                 <Phone className="size-3.5 shrink-0" />
                 <span>+254 769 679 667</span>
               </a>
             </li>
             <li>
-              <a
-                href="https://wa.me/254769679667"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 transition-colors hover:text-foreground"
-              >
+              <a href="https://wa.me/254769679667" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 transition-colors hover:text-foreground">
                 <MessageCircle className="size-3.5 shrink-0" />
                 <span>WhatsApp us</span>
               </a>
             </li>
             <li>
-              <a
-                href="mailto:otuko88motorstores@gmail.com"
-                className="flex items-center gap-2 break-all transition-colors hover:text-foreground"
-              >
+              <a href="mailto:otuko88motorstores@gmail.com" className="flex items-center gap-2 break-all transition-colors hover:text-foreground">
                 <Mail className="size-3.5 shrink-0" />
                 <span>otuko88motorstores@gmail.com</span>
               </a>
